@@ -387,25 +387,27 @@
   .splits .at { font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--ink-2); }
 
 
-  /* steam timer (milk section) -------------------------------------------- */
-  .steam {
+  /* timers for the current step ------------------------------------------- */
+  .timers {
     margin: 20px -12px 0;
-    padding: 16px 14px 12px;
     border-top: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
     background: var(--surface);
   }
 
-  .steam[hidden] { display: none; }
+  .timers[hidden] { display: none; }
 
-  .steam-row {
+  .timer {
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: center;
     gap: 14px;
+    padding: 16px 14px;
   }
 
-  .steam-time {
+  .timer + .timer { border-top: 1px solid var(--line-soft); }
+
+  .timer-time {
     font-size: 38px;
     font-weight: 620;
     line-height: 1;
@@ -415,17 +417,17 @@
     transition: color 180ms ease-out;
   }
 
-  .steam-note {
+  .timer-note {
     margin-top: 7px;
     font-size: 12.5px;
     color: var(--ink-2);
   }
 
-  .steam[data-phase="delay"] .steam-time { color: var(--ink-2); }
-  .steam[data-hit="true"] .steam-time { color: var(--current); }
-  .steam[data-hit="true"] .steam-note { color: var(--ink); }
+  .timer[data-phase="delay"] .timer-time { color: var(--ink-2); }
+  .timer[data-hit="true"] .timer-time { color: var(--current); }
+  .timer[data-hit="true"] .timer-note { color: var(--ink); }
 
-  .steam-btn {
+  .timer-btn {
     min-width: 104px;
     height: 48px;
     font-size: 15.5px;
@@ -434,7 +436,7 @@
     box-shadow: none;
   }
 
-  .steam-btn[data-quiet="true"] {
+  .timer-btn[data-quiet="true"] {
     background: transparent;
     color: var(--ink);
     border-color: var(--line);
@@ -533,6 +535,41 @@
     margin: 8px 0 0;
     font-size: 12.5px;
     color: var(--ink-2);
+  }
+
+  .timer-block {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--paper);
+    padding: 10px 12px 12px;
+    margin-bottom: 10px;
+  }
+
+  .timer-head {
+    display: grid;
+    grid-template-columns: 1fr 36px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .timer-name {
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 550;
+    height: 36px;
+    padding: 0;
+    min-width: 0;
+  }
+
+  .timer-name:focus-visible, .timer-block select:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+    border-radius: 6px;
   }
 
   .settings h3 {
@@ -638,15 +675,7 @@
 
   <ol class="steps" id="steps" aria-label="Latte sections"></ol>
 
-  <section class="steam" id="steam" aria-label="Steam timer" hidden>
-    <div class="steam-row">
-      <div>
-        <div class="steam-time" id="steam-time">0:00</div>
-        <div class="steam-note" id="steam-note">target 55s</div>
-      </div>
-      <button class="btn btn-primary steam-btn" id="steam-run" type="button">Run</button>
-    </div>
-  </section>
+  <div class="timers" id="timers" hidden></div>
 
   <div class="actions" id="actions" data-mode="idle">
     <button class="btn btn-ghost" id="undo" type="button">Undo</button>
@@ -672,21 +701,11 @@
       <p class="hint">Drag the handle to reorder. Editing the steps ends a run in progress.</p>
     </section>
 
-    <section class="settings" aria-label="Steam timer settings">
-      <h3>Steam timer</h3>
-      <div class="fields">
-        <label class="field wide">Shown on
-          <select id="cfg-section"></select>
-        </label>
-        <label class="field">Delay (s)
-          <input id="cfg-delay" type="number" min="0" max="120" step="1" inputmode="numeric">
-        </label>
-        <label class="field">Target (s)
-          <input id="cfg-target" type="number" min="5" max="900" step="1" inputmode="numeric">
-        </label>
-        <label class="toggle"><input id="cfg-sound" type="checkbox"> Sound</label>
-        <label class="toggle"><input id="cfg-vibrate" type="checkbox"> Vibration</label>
-      </div>
+    <section class="settings" aria-label="Timers">
+      <h3>Timers</h3>
+      <div id="timer-editor"></div>
+      <button class="chip" id="add-timer" type="button">Add timer</button>
+      <p class="hint">A timer appears on its step only. Run waits the start delay, then counts up; at the alert time it beeps and/or vibrates. Steam is the default, on the milk step.</p>
     </section>
 
     <div class="danger-row">
@@ -712,56 +731,35 @@
     "Final cleanup"
   ];
   const MAX_SECTIONS = 20;
+  const MAX_TIMERS = 6;
   const NAME_MAX = 40;
 
   const RUN_KEY = "latte.run.v1";
   const HIST_KEY = "latte.history.v1";
-  const CFG_KEY = "latte.config.v1";
   const SECTIONS_STORE = "latte.sections.v1";
-  const STEAM_KEY = "latte.steam.v1";
+  const TIMERS_KEY = "latte.timers.v1";
+  const TIMER_STATE_KEY = "latte.timerstate.v1";
+  const LEGACY_CFG_KEY = "latte.config.v1";
 
-  const STALE_MS = 6 * 60 * 60 * 1000;   // a section left open this long is not a split
+  const STALE_MS = 6 * 60 * 60 * 1000;   // a step left open this long is not a split
   const KEEP = 12;                        // finished runs remembered
   const TICK_MS = 200;
-
-  // the steps are user data: the list is a setting, not a constant
-  let sections = loadSections();
-
-  function loadSections() {
-    const stored = read(SECTIONS_STORE, null);
-    if (!Array.isArray(stored)) return DEFAULT_SECTIONS.slice();
-    const clean = stored.map((name) => String(name).trim()).filter(Boolean).slice(0, MAX_SECTIONS);
-    return clean.length ? clean : DEFAULT_SECTIONS.slice();
-  }
-
-  // a run belongs to the list it started on
-  const sectionsKey = () => sections.join("→");
+  const LIMITS = { delaySec: [0, 120], targetSec: [1, 900] };
 
   const LEGACY_SECTIONS = [
     "Dose — weigh & spray", "Grind", "Load & tamp",
     "Milk — prep & steam", "Pour & build", "Cleanup"
   ];
 
-  const CFG_DEFAULTS = {
-    delaySec: 5,
-    targetSec: 55,
-    sound: true,
-    vibrate: true,
-    steamSection: "Milk — prep & steam"
-  };
-  const CFG_LIMITS = { delaySec: [0, 120], targetSec: [5, 900] };
-
   const $ = (id) => document.getElementById(id);
   const ui = {
     steps: $("steps"), actions: $("actions"), next: $("next"), undo: $("undo"),
     total: $("total"), say: $("say"),
-    steam: $("steam"), steamTime: $("steam-time"), steamNote: $("steam-note"), steamBtn: $("steam-run"),
+    timers: $("timers"), timerEditor: $("timer-editor"), addTimer: $("add-timer"),
     runsPage: $("history-page"), runs: $("runs"), runsEmpty: $("history-empty"), runCount: $("run-count"),
     openRuns: $("open-history"), closeRuns: $("close-history"),
     clear: $("clear"), resetAll: $("reset-all"),
-    editor: $("editor"), addStep: $("add-step"),
-    cfgSection: $("cfg-section"), cfgDelay: $("cfg-delay"), cfgTarget: $("cfg-target"),
-    cfgSound: $("cfg-sound"), cfgVibrate: $("cfg-vibrate")
+    editor: $("editor"), addStep: $("add-step")
   };
 
   // ---- storage -------------------------------------------------------------
@@ -782,44 +780,103 @@
     }
   }
 
-  // ---- model ---------------------------------------------------------------
-  // run   : { startedAt, index, sectionStartedAt, marks: [{ name, secs }], done, finishedAt }
-  //         while running marks.length === index: marks[i] is a finished section,
-  //         run.index is the section being timed right now.
-  // steam : { phase: "idle" | "delay" | "run", delayEndsAt, startedAt, hit, lastElapsed }
+  // ---- steps ---------------------------------------------------------------
+  const round1 = (n) => Math.round(n * 10) / 10;
+
+  function loadSections() {
+    const stored = read(SECTIONS_STORE, null);
+    if (!Array.isArray(stored)) return DEFAULT_SECTIONS.slice();
+    const clean = stored.map((name) => String(name).trim()).filter(Boolean).slice(0, MAX_SECTIONS);
+    return clean.length ? clean : DEFAULT_SECTIONS.slice();
+  }
+
+  let sections = loadSections();
+  const sectionsKey = () => sections.join("→");
+
+  function clamp(value, range, fallback) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(range[1], Math.max(range[0], Math.round(n)));
+  }
+
+  // ---- timers (definitions) -----------------------------------------------
+  // A timer is a name, the step it appears on, and its delay/target/feedback.
+  // The default one is a steam timer on the milk step; add more for other steps.
+  function defaultTimers() {
+    return [{
+      id: "steam",
+      name: "Steam",
+      step: "Milk — prep & steam",
+      delaySec: 5,
+      targetSec: 55,
+      sound: true,
+      vibrate: true
+    }];
+  }
+
+  function normaliseTimer(raw, index) {
+    const step = sections.includes(raw && raw.step) ? raw.step : sections[0];
+    return {
+      id: String((raw && raw.id) || "timer-" + (index + 1)),
+      name: String((raw && raw.name) || "Timer " + (index + 1)).trim().slice(0, NAME_MAX) || "Timer " + (index + 1),
+      step: step,
+      delaySec: clamp(raw && raw.delaySec, LIMITS.delaySec, 5),
+      targetSec: clamp(raw && raw.targetSec, LIMITS.targetSec, 55),
+      sound: !(raw && raw.sound === false),
+      vibrate: !(raw && raw.vibrate === false)
+    };
+  }
+
+  function loadTimers() {
+    const stored = read(TIMERS_KEY, null);
+    if (Array.isArray(stored)) {
+      const clean = stored.slice(0, MAX_TIMERS).map(normaliseTimer);
+      return clean.length ? clean : defaultTimers();
+    }
+
+    // one-timer config from earlier builds becomes the steam timer
+    const legacy = read(LEGACY_CFG_KEY, null);
+    if (legacy && typeof legacy === "object") {
+      let step = legacy.steamSection;
+      if (typeof step === "number") step = LEGACY_SECTIONS[step];
+      return [normaliseTimer({
+        id: "steam",
+        name: "Steam",
+        step: sections.includes(step) ? step : sections[0],
+        delaySec: legacy.delaySec,
+        targetSec: legacy.targetSec,
+        sound: legacy.sound,
+        vibrate: legacy.vibrate
+      }, 0)];
+    }
+
+    return defaultTimers().map(normaliseTimer);
+  }
+
+  let timers = loadTimers();
+  if (!read(TIMERS_KEY, null)) write(TIMERS_KEY, timers);   // defaults (or migrated legacy) become editable data
+  let timerStates = read(TIMER_STATE_KEY, {});
+  if (!timerStates || typeof timerStates !== "object") timerStates = {};
+
+  // ---- run -----------------------------------------------------------------
+  // run: { startedAt, index, sectionStartedAt, marks: [{ name, start, secs }], done, finishedAt, sectionsKey }
+  // while running marks.length === index: marks[i] is a finished step,
+  // run.index is the step being timed right now.
   let run = read(RUN_KEY, null);
-  let steam = read(STEAM_KEY, null);
   let history = read(HIST_KEY, []);
-  let config = Object.assign({}, CFG_DEFAULTS, read(CFG_KEY, {}));
-
-  // earlier builds stored the steam section as an index; a reorder would point
-  // it at the wrong step, so a number is resolved to its name once.
-  if (typeof config.steamSection === "number") {
-    config.steamSection = LEGACY_SECTIONS[config.steamSection] || CFG_DEFAULTS.steamSection;
-    if (!sections.includes(config.steamSection)) config.steamSection = CFG_DEFAULTS.steamSection;
-    write(CFG_KEY, config);
-  }
-
-  // the steam timer names its step; a list without that step would leave the
-  // panel permanently hidden and the select blank, so it moves to the first step
-  if (!sections.includes(config.steamSection)) {
-    config.steamSection = sections[0];
-    write(CFG_KEY, config);
-  }
 
   if (run && !run.done && Date.now() - (run.sectionStartedAt || 0) > STALE_MS) {
     run = null;
     write(RUN_KEY, null);
   }
 
-  // a run in flight against a different section list is not a measurement of
-  // these steps: drop it instead of resuming into the wrong ones
+  // a run in flight against a different step list is not a measurement of these
+  // steps: drop it instead of resuming into the wrong ones
   if (run && !run.done && run.sectionsKey !== sectionsKey()) {
     run = null;
     write(RUN_KEY, null);
   }
 
-  const round1 = (n) => Math.round(n * 10) / 10;
   const isRunning = () => !!run && !run.done;
   const isDone = () => !!run && !!run.done;
 
@@ -832,6 +889,14 @@
     return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
   }
 
+  const clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const clockSec = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+  function stamp(ms) {
+    const d = new Date(ms);
+    return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " · " + clock(ms);
+  }
+
   function sectionElapsed() {
     return isRunning() ? Math.max(0, (Date.now() - run.sectionStartedAt) / 1000) : 0;
   }
@@ -841,7 +906,7 @@
     return run.marks.reduce((sum, m) => sum + m.secs, 0) + sectionElapsed();
   }
 
-  // ---- sections list -------------------------------------------------------
+  // ---- main list -----------------------------------------------------------
   let rows = [];
 
   function buildRows() {
@@ -901,7 +966,7 @@
       ui.total.textContent = "";
     }
 
-    renderSteam();
+    renderTimers();
     renderRuns();
   }
 
@@ -948,12 +1013,187 @@
     });
   }
 
-  const clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const clockSec = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  // ---- timer panel ---------------------------------------------------------
+  const timerNodes = new Map();
 
-  function stamp(ms) {
-    const d = new Date(ms);
-    return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " · " + clock(ms);
+  function timersForCurrentStep() {
+    if (!isRunning()) return [];
+    const step = sections[run.index];
+    return timers.filter((timer) => timer.step === step);
+  }
+
+  function stateOf(id) {
+    const state = timerStates[id];
+    return state && state.phase ? state : null;
+  }
+
+  function elapsedOf(state) {
+    if (!state) return 0;
+    if (state.phase === "run") return Math.max(0, (Date.now() - state.startedAt) / 1000);
+    return state.phase === "idle" ? (state.lastElapsed || 0) : 0;
+  }
+
+  function renderTimers() {
+    const list = timersForCurrentStep();
+    ui.timers.hidden = list.length === 0;
+
+    const ids = list.map((timer) => timer.id).join(",");
+    if (ids !== ui.timers.dataset.ids) {
+      ui.timers.dataset.ids = ids;
+      ui.timers.textContent = "";
+      timerNodes.clear();
+
+      list.forEach((timer) => {
+        const root = document.createElement("div");
+        root.className = "timer";
+        root.innerHTML =
+          '<div><div class="timer-time">0:00</div><div class="timer-note"></div></div>'
+          + '<button class="btn btn-primary timer-btn" type="button"></button>';
+        const btn = root.querySelector(".timer-btn");
+        btn.addEventListener("click", () => pressTimer(timer.id));
+        timerNodes.set(timer.id, {
+          root: root,
+          time: root.querySelector(".timer-time"),
+          note: root.querySelector(".timer-note"),
+          btn: btn
+        });
+        ui.timers.appendChild(root);
+      });
+    }
+
+    list.forEach(paintTimer);
+  }
+
+  function paintTimer(timer) {
+    const node = timerNodes.get(timer.id);
+    if (!node) return;
+
+    const state = stateOf(timer.id);
+    const phase = state ? state.phase : "idle";
+    const target = Number(timer.targetSec);
+
+    node.root.dataset.phase = phase;
+    node.root.dataset.hit = state && state.hit ? "true" : "false";
+    node.btn.dataset.quiet = phase === "idle" ? "false" : "true";
+
+    if (phase === "delay") {
+      const left = Math.max(0, Math.ceil((state.delayEndsAt - Date.now()) / 1000));
+      node.time.textContent = fmt(left);          // 0:04, not a bare 4 that reads as a step number
+      node.note.textContent = timer.name + " · starting in " + left + "s";
+      node.btn.textContent = "Cancel";
+      return;
+    }
+
+    if (phase === "run") {
+      node.time.textContent = fmt(elapsedOf(state));
+      node.note.textContent = state.hit
+        ? timer.name + " · " + target + "s reached, still counting"
+        : timer.name + " · alert at " + target + "s";
+      node.btn.textContent = "Stop";
+      return;
+    }
+
+    const last = state && state.lastElapsed ? state.lastElapsed : 0;
+    node.time.textContent = fmt(last);
+    node.note.textContent = last
+      ? timer.name + " · last " + fmt(last) + ", alert at " + target + "s"
+      : timer.name + " · " + target + "s alert, starts after " + timer.delaySec + "s";
+    node.btn.textContent = "Run";
+  }
+
+  function pressTimer(id) {
+    const timer = timers.find((item) => item.id === id);
+    if (!timer) return;
+
+    const state = stateOf(id);
+    const phase = state ? state.phase : "idle";
+
+    if (phase === "idle") {
+      const now = Date.now();
+      const delayMs = Math.max(0, Number(timer.delaySec) || 0) * 1000;
+      audioPrime();
+      timerStates[id] = {
+        phase: delayMs > 0 ? "delay" : "run",
+        delayEndsAt: now + delayMs,
+        startedAt: now + delayMs,
+        hit: false,
+        lastElapsed: 0
+      };
+    } else if (phase === "delay") {
+      timerStates[id] = { phase: "idle", lastElapsed: 0, hit: false };
+    } else {
+      timerStates[id] = { phase: "idle", lastElapsed: elapsedOf(state), hit: !!state.hit };
+    }
+
+    write(TIMER_STATE_KEY, timerStates);
+    renderTimers();
+  }
+
+  function tickTimers() {
+    const list = timersForCurrentStep();
+    if (!list.length) {
+      renderTimers();
+      return;
+    }
+
+    const now = Date.now();
+    let dirty = false;
+
+    list.forEach((timer) => {
+      const state = stateOf(timer.id);
+      if (!state) return;
+
+      if (state.phase === "delay" && now >= state.delayEndsAt) {
+        state.phase = "run";
+        dirty = true;
+        cue(timer, 1, 680, 0.13, 45);
+      }
+
+      if (state.phase === "run" && !state.hit && (now - state.startedAt) / 1000 >= Number(timer.targetSec)) {
+        state.hit = true;
+        dirty = true;
+        cue(timer, 3, 900, 0.15, [140, 70, 140]);
+        announce(timer.name + " target reached.");
+      }
+    });
+
+    if (dirty) write(TIMER_STATE_KEY, timerStates);
+    renderTimers();
+  }
+
+  function clearTimerStates() {
+    timerStates = {};
+    write(TIMER_STATE_KEY, timerStates);
+  }
+
+  // ---- feedback ------------------------------------------------------------
+  let audio = null;
+
+  function audioPrime() {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!audio) audio = new Ctx();
+    if (audio.state === "suspended") audio.resume();
+  }
+
+  function cue(timer, count, freq, dur, pattern) {
+    if (timer.sound && audio) {
+      const t0 = audio.currentTime;
+      for (let i = 0; i < count; i++) {
+        const t = t0 + i * 0.24;
+        const osc = audio.createOscillator();
+        const gain = audio.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.2, t + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        osc.connect(gain).connect(audio.destination);
+        osc.start(t);
+        osc.stop(t + dur + 0.03);
+      }
+    }
+    if (timer.vibrate && navigator.vibrate) navigator.vibrate(pattern);
   }
 
   // ---- run transitions -----------------------------------------------------
@@ -965,8 +1205,7 @@
   function startRun() {
     const now = Date.now();
     run = { startedAt: now, index: 0, sectionStartedAt: now, marks: [], done: false, sectionsKey: sectionsKey() };
-    steam = null;
-    write(STEAM_KEY, null);
+    clearTimerStates();
     commitRun();
     startTicker();
     holdScreen();
@@ -989,8 +1228,7 @@
     }
 
     run.sectionStartedAt = now;
-    steam = null;
-    write(STEAM_KEY, null);
+    clearTimerStates();
     commitRun();
     announce(sections[run.index] + ".");
   }
@@ -1008,15 +1246,14 @@
     history = history.slice(0, KEEP);
     write(HIST_KEY, history);
 
-    steam = null;
-    write(STEAM_KEY, null);
+    clearTimerStates();
     stopTicker();
     dropScreen();
     commitRun();
     announce("Run complete. " + fmt(total) + ".");
   }
 
-  // A correction, not a reset: the time spent in the current section joins the
+  // A correction, not a reset: the time spent in the current step joins the
   // previous one, whose clock then keeps running from the merged total.
   function undoSection() {
     if (!isRunning()) return;
@@ -1033,18 +1270,15 @@
 
     run.index -= 1;                              // marks.length === run.index again
     run.sectionStartedAt = now - merged * 1000;  // clock continues from the merged total
-
-    steam = null;
-    write(STEAM_KEY, null);
+    clearTimerStates();
     commitRun();
     announce("Back to " + sections[run.index] + ", " + fmt(merged) + " so far.");
   }
 
   function resetRun() {
     run = null;
-    steam = null;
+    clearTimerStates();
     write(RUN_KEY, null);
-    write(STEAM_KEY, null);
     stopTicker();
     dropScreen();
     render();
@@ -1053,153 +1287,17 @@
 
   function resetEverything() {
     run = null;
-    steam = null;
     history = [];
     write(RUN_KEY, null);
-    write(STEAM_KEY, null);
     write(HIST_KEY, []);
+    clearTimerStates();
     stopTicker();
     dropScreen();
     render();
     announce("Everything reset.");
   }
 
-  // ---- steam timer ---------------------------------------------------------
-  // phase "idle" -> press -> "delay" (config.delaySec) -> "run" -> target cue.
-  const steamPhase = () => (steam && steam.phase ? steam.phase : "idle");
-  const steamVisible = () => isRunning() && sections[run.index] === config.steamSection;
-
-  function steamElapsed() {
-    if (!steam) return 0;
-    if (steam.phase === "run") return Math.max(0, (Date.now() - steam.startedAt) / 1000);
-    return steam.phase === "idle" ? (steam.lastElapsed || 0) : 0;
-  }
-
-  function commitSteam() {
-    write(STEAM_KEY, steam);
-    renderSteam();
-  }
-
-  function steamStart() {
-    const now = Date.now();
-    const delayMs = Math.max(0, Number(config.delaySec) || 0) * 1000;
-    audioPrime();
-    steam = {
-      phase: delayMs > 0 ? "delay" : "run",
-      delayEndsAt: now + delayMs,
-      startedAt: now + delayMs,
-      hit: false,
-      lastElapsed: 0
-    };
-    commitSteam();
-  }
-
-  function steamCancel() {
-    steam = { phase: "idle", lastElapsed: 0, hit: false };
-    commitSteam();
-  }
-
-  function steamStop() {
-    steam = { phase: "idle", lastElapsed: steamElapsed(), hit: !!(steam && steam.hit) };
-    commitSteam();
-  }
-
-  function steamPress() {
-    if (!steamVisible()) return;
-    const phase = steamPhase();
-    if (phase === "idle") steamStart();
-    else if (phase === "delay") steamCancel();
-    else steamStop();
-  }
-
-  function steamTick() {
-    if (!steamVisible() || !steam) return;
-    const now = Date.now();
-
-    if (steam.phase === "delay" && now >= steam.delayEndsAt) {
-      steam.phase = "run";
-      write(STEAM_KEY, steam);
-      beep(1, 680, 0.13);
-      buzz(45);
-    }
-
-    if (steam.phase === "run" && !steam.hit && steamElapsed() >= Number(config.targetSec)) {
-      steam.hit = true;
-      write(STEAM_KEY, steam);
-      beep(3, 900, 0.15);
-      buzz([140, 70, 140]);
-      announce("Steam target reached.");
-    }
-
-    renderSteam();
-  }
-
-  function renderSteam() {
-    const visible = steamVisible();
-    ui.steam.hidden = !visible;
-    if (!visible) return;
-
-    const phase = steamPhase();
-    const target = Number(config.targetSec);
-    ui.steam.dataset.phase = phase;
-    ui.steam.dataset.hit = steam && steam.hit ? "true" : "false";
-    ui.steamBtn.dataset.quiet = phase === "idle" ? "false" : "true";
-
-    if (phase === "delay") {
-      const left = Math.max(0, Math.ceil((steam.delayEndsAt - Date.now()) / 1000));
-      ui.steamTime.textContent = String(left);
-      ui.steamNote.textContent = "starting in " + left + "s";
-      ui.steamBtn.textContent = "Cancel";
-    } else if (phase === "run") {
-      ui.steamTime.textContent = fmt(steamElapsed());
-      ui.steamNote.textContent = steam.hit
-        ? target + "s reached · still counting"
-        : "steaming · target " + target + "s";
-      ui.steamBtn.textContent = "Stop";
-    } else {
-      const last = steam && steam.lastElapsed ? steam.lastElapsed : 0;
-      ui.steamTime.textContent = fmt(last);
-      ui.steamNote.textContent = last
-        ? "last " + fmt(last) + " · target " + target + "s"
-        : "target " + target + "s · " + config.delaySec + "s delay";
-      ui.steamBtn.textContent = "Run";
-    }
-  }
-
-  // ---- feedback ------------------------------------------------------------
-  let audio = null;
-
-  function audioPrime() {
-    if (!config.sound) return;
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    if (!audio) audio = new Ctx();
-    if (audio.state === "suspended") audio.resume();
-  }
-
-  function beep(count, freq, dur) {
-    if (!config.sound || !audio) return;
-    const t0 = audio.currentTime;
-    for (let i = 0; i < count; i++) {
-      const t = t0 + i * 0.24;
-      const osc = audio.createOscillator();
-      const gain = audio.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.2, t + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      osc.connect(gain).connect(audio.destination);
-      osc.start(t);
-      osc.stop(t + dur + 0.03);
-    }
-  }
-
-  function buzz(pattern) {
-    if (config.vibrate && navigator.vibrate) navigator.vibrate(pattern);
-  }
-
-  // ---- ticking, wake lock, screen reader -----------------------------------
+  // ---- ticking, wake lock, announcements -----------------------------------
   let ticker = null;
   let wakeLock = null;
 
@@ -1210,7 +1308,7 @@
       const row = rows[run.index];
       if (row) row.querySelector(".t").textContent = fmt(sectionElapsed());
       ui.total.textContent = fmt(runTotal());
-      steamTick();
+      tickTimers();
     }, TICK_MS);
   }
 
@@ -1242,68 +1340,6 @@
     }
   });
 
-  // ---- settings ------------------------------------------------------------
-  function clamp(value, range, fallback) {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return fallback;
-    return Math.min(range[1], Math.max(range[0], Math.round(n)));
-  }
-
-  function fillSectionOptions() {
-    ui.cfgSection.textContent = "";
-    sections.forEach((name) => {
-      const option = document.createElement("option");
-      option.value = name;
-      option.textContent = name;
-      ui.cfgSection.appendChild(option);
-    });
-  }
-
-  function applyConfigToInputs() {
-    ui.cfgSection.value = config.steamSection;
-    ui.cfgDelay.value = String(config.delaySec);
-    ui.cfgTarget.value = String(config.targetSec);
-    ui.cfgSound.checked = !!config.sound;
-    ui.cfgVibrate.checked = !!config.vibrate;
-  }
-
-  function saveConfig() {
-    write(CFG_KEY, config);
-    renderSteam();
-  }
-
-  ui.cfgSection.addEventListener("change", () => {
-    config.steamSection = sections.includes(ui.cfgSection.value) ? ui.cfgSection.value : sections[0];
-    ui.cfgSection.value = config.steamSection;
-    steam = null;
-    write(STEAM_KEY, null);
-    saveConfig();
-    render();
-  });
-
-  ui.cfgDelay.addEventListener("change", () => {
-    config.delaySec = clamp(ui.cfgDelay.value, CFG_LIMITS.delaySec, CFG_DEFAULTS.delaySec);
-    ui.cfgDelay.value = String(config.delaySec);
-    saveConfig();
-  });
-
-  ui.cfgTarget.addEventListener("change", () => {
-    config.targetSec = clamp(ui.cfgTarget.value, CFG_LIMITS.targetSec, CFG_DEFAULTS.targetSec);
-    ui.cfgTarget.value = String(config.targetSec);
-    saveConfig();
-  });
-
-  ui.cfgSound.addEventListener("change", () => {
-    config.sound = ui.cfgSound.checked;
-    if (config.sound) audioPrime();
-    saveConfig();
-  });
-
-  ui.cfgVibrate.addEventListener("change", () => {
-    config.vibrate = ui.cfgVibrate.checked;
-    saveConfig();
-  });
-
   // ---- steps editor --------------------------------------------------------
   const GRIP_ICON = '<svg width="10" height="16" viewBox="0 0 10 16" aria-hidden="true"><g fill="currentColor">'
     + '<circle cx="3" cy="3" r="1.4"/><circle cx="7" cy="3" r="1.4"/>'
@@ -1312,7 +1348,7 @@
   const CROSS_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">'
     + '<path d="M2.5 2.5l7 7M9.5 2.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
-  function renderEditor() {
+  function renderStepEditor() {
     ui.editor.textContent = "";
     sections.forEach((name, i) => {
       const li = document.createElement("li");
@@ -1328,32 +1364,35 @@
     ui.addStep.disabled = sections.length >= MAX_SECTIONS;
   }
 
-  // Every edit lands here: the list is written, the main screen is rebuilt, and
-  // a run that measured the old steps is dropped rather than continued wrong.
+  // Every step edit lands here: the list is written, the main screen is rebuilt,
+  // timers pinned to vanished steps move, and a run measuring the old steps ends.
   function applySections(next) {
     sections = next.slice(0, MAX_SECTIONS);
     write(SECTIONS_STORE, sections);
 
     if (isRunning()) {
       run = null;
-      steam = null;
       write(RUN_KEY, null);
-      write(STEAM_KEY, null);
+      clearTimerStates();
       stopTicker();
       dropScreen();
       announce("Steps changed — the run in progress was ended.");
     }
 
-    if (!sections.includes(config.steamSection)) {
-      config.steamSection = sections[0];
-      write(CFG_KEY, config);
-      announce("Steam timer moved to " + config.steamSection + ".");
+    let moved = [];
+    timers = timers.map((timer) => {
+      if (sections.includes(timer.step)) return timer;
+      moved.push(timer.name);
+      return Object.assign({}, timer, { step: sections[0] });
+    });
+    if (moved.length) {
+      write(TIMERS_KEY, timers);
+      announce(moved.join(", ") + " moved to " + sections[0] + ".");
     }
 
     buildRows();
-    renderEditor();
-    fillSectionOptions();
-    applyConfigToInputs();
+    renderStepEditor();
+    renderTimerEditor();
     render();
   }
 
@@ -1366,8 +1405,16 @@
       input.value = sections[index];
       return;
     }
+    const previous = sections[index];
     const next = sections.slice();
     next[index] = name;
+
+    // a step's timer follows the rename
+    timers = timers.map((timer) => timer.step === previous
+      ? Object.assign({}, timer, { step: name })
+      : timer);
+    write(TIMERS_KEY, timers);
+
     applySections(next);
   });
 
@@ -1392,7 +1439,6 @@
 
   // drag to reorder: pointer events, so the same code works with a thumb
   let drag = null;
-
   const editorRows = () => Array.from(ui.editor.children);
 
   function dragStart(event) {
@@ -1404,12 +1450,11 @@
       target: Number(row.dataset.index),
       startY: event.clientY,
       height: row.getBoundingClientRect().height + 8,
-      row
+      row: row
     };
     row.classList.add("dragging");
-    // a pointer can already be gone by the time we capture it (touch cancel)
     if (grip.setPointerCapture) {
-      try { grip.setPointerCapture(event.pointerId); } catch (err) { /* drag still tracks via the window */ }
+      try { grip.setPointerCapture(event.pointerId); } catch (err) { /* the window still tracks the drag */ }
     }
     event.preventDefault();
   }
@@ -1433,9 +1478,10 @@
 
   function dragEnd() {
     if (!drag) return;
-    const { index, target, row } = drag;
-    row.style.transform = "";
-    row.classList.remove("dragging");
+    const index = drag.index;
+    const target = drag.target;
+    drag.row.style.transform = "";
+    drag.row.classList.remove("dragging");
     editorRows().forEach((li) => { li.style.transform = ""; });
     drag = null;
 
@@ -1451,6 +1497,129 @@
   window.addEventListener("pointerup", dragEnd);
   window.addEventListener("pointercancel", dragEnd);
 
+  // ---- timers editor -------------------------------------------------------
+  function renderTimerEditor() {
+    ui.timerEditor.textContent = "";
+
+    timers.forEach((timer) => {
+      const block = document.createElement("div");
+      block.className = "timer-block";
+      block.dataset.id = timer.id;
+      block.innerHTML =
+        '<div class="timer-head">'
+        + '<input class="timer-name" type="text" maxlength="' + NAME_MAX + '" aria-label="Timer name">'
+        + '<button class="step-remove timer-remove" type="button" aria-label="Remove timer">' + CROSS_ICON + '</button>'
+        + '</div>'
+        + '<div class="fields">'
+        + '<label class="field wide">Step<select class="timer-step"></select></label>'
+        + '<label class="field">Starts after (s)<input class="timer-delay" type="number" min="' + LIMITS.delaySec[0] + '" max="' + LIMITS.delaySec[1] + '" step="1" inputmode="numeric"></label>'
+        + '<label class="field">Alert at (s)<input class="timer-target" type="number" min="' + LIMITS.targetSec[0] + '" max="' + LIMITS.targetSec[1] + '" step="1" inputmode="numeric"></label>'
+        + '<label class="toggle"><input class="timer-sound" type="checkbox"> Sound</label>'
+        + '<label class="toggle"><input class="timer-vibrate" type="checkbox"> Vibration</label>'
+        + '</div>';
+
+      block.querySelector(".timer-name").value = timer.name;
+
+      const select = block.querySelector(".timer-step");
+      sections.forEach((name) => {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      });
+      select.value = timer.step;
+
+      block.querySelector(".timer-delay").value = String(timer.delaySec);
+      block.querySelector(".timer-target").value = String(timer.targetSec);
+      block.querySelector(".timer-sound").checked = !!timer.sound;
+      block.querySelector(".timer-vibrate").checked = !!timer.vibrate;
+
+      ui.timerEditor.appendChild(block);
+    });
+
+    ui.addTimer.disabled = timers.length >= MAX_TIMERS;
+  }
+
+  function storeTimers() {
+    write(TIMERS_KEY, timers);
+  }
+
+  function commitTimers() {
+    storeTimers();
+    renderTimerEditor();
+    renderTimers();
+  }
+
+  function timerFromEvent(event) {
+    const block = event.target.closest(".timer-block");
+    if (!block) return null;
+    return timers.find((timer) => timer.id === block.dataset.id) || null;
+  }
+
+  ui.timerEditor.addEventListener("change", (event) => {
+    const timer = timerFromEvent(event);
+    if (!timer) return;
+    const block = event.target.closest(".timer-block");
+
+    if (event.target.classList.contains("timer-name")) {
+      const name = event.target.value.trim().slice(0, NAME_MAX) || timer.name;
+      event.target.value = name;
+      timer.name = name;
+    } else if (event.target.classList.contains("timer-step")) {
+      timer.step = sections.includes(event.target.value) ? event.target.value : sections[0];
+    } else if (event.target.classList.contains("timer-delay")) {
+      timer.delaySec = clamp(event.target.value, LIMITS.delaySec, timer.delaySec);
+      event.target.value = String(timer.delaySec);
+    } else if (event.target.classList.contains("timer-target")) {
+      timer.targetSec = clamp(event.target.value, LIMITS.targetSec, timer.targetSec);
+      event.target.value = String(timer.targetSec);
+    } else if (event.target.classList.contains("timer-sound")) {
+      timer.sound = event.target.checked;
+      if (timer.sound) audioPrime();
+    } else if (event.target.classList.contains("timer-vibrate")) {
+      timer.vibrate = event.target.checked;
+    } else {
+      return;
+    }
+
+    timerStates[timer.id] = null;
+    write(TIMER_STATE_KEY, timerStates);
+    storeTimers();
+    renderTimers();
+  });
+
+  ui.timerEditor.addEventListener("click", (event) => {
+    if (!event.target.closest(".timer-remove") || timers.length <= 1) return;
+    const timer = timerFromEvent(event);
+    if (!timer) return;
+    timers = timers.filter((item) => item.id !== timer.id);
+    delete timerStates[timer.id];
+    write(TIMER_STATE_KEY, timerStates);
+    commitTimers();
+  });
+
+  ui.addTimer.addEventListener("click", () => {
+    if (timers.length >= MAX_TIMERS) return;
+    const used = new Set(timers.map((timer) => timer.id));
+    let n = timers.length + 1;
+    while (used.has("timer-" + n)) n += 1;
+    timers = timers.concat({
+      id: "timer-" + n,
+      name: "Timer " + n,
+      step: sections[run && isRunning() ? run.index : 0],
+      delaySec: 0,
+      targetSec: 30,
+      sound: true,
+      vibrate: true
+    });
+    commitTimers();
+    const block = ui.timerEditor.lastElementChild;
+    if (!block) return;
+    const input = block.querySelector(".timer-name");
+    input.focus();
+    input.select();
+  });
+
   // ---- wiring --------------------------------------------------------------
   function applyRoute() {
     const open = location.hash === "#runs";
@@ -1460,7 +1629,6 @@
 
   ui.next.addEventListener("click", nextSection);
   ui.undo.addEventListener("click", undoSection);
-  ui.steamBtn.addEventListener("click", steamPress);
   ui.openRuns.addEventListener("click", () => { location.hash = "runs"; });
   ui.closeRuns.addEventListener("click", () => {
     if (location.hash === "#runs") location.hash = "";
@@ -1470,7 +1638,7 @@
 
   ui.clear.addEventListener("click", () => {
     history = [];
-    write(HIST_KEY, []);
+    write(HIST_KEY, history);
     renderRuns();
     announce("History cleared.");
   });
@@ -1505,11 +1673,11 @@
 
   // ---- boot ----------------------------------------------------------------
   buildRows();
-  renderEditor();
-  fillSectionOptions();
-  applyConfigToInputs();
+  renderStepEditor();
+  renderTimerEditor();
   render();
   applyRoute();
+
   if (isRunning()) {
     startTicker();
     holdScreen().catch(() => {});

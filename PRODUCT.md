@@ -46,7 +46,9 @@ matter more than any visual idea.
 - One run at a time; starting a new run abandons nothing silently — a finished
   run is already in history.
 - Clearing history is a deliberate, small action, not on the main path.
+- Steps can carry small side timers (the default is Steam on the milk step, 5 s
+  delay, 55 s target). Each timer names its step, and several may share one.
 
 ## Out of scope
 
-Targets per section, sound, sharing, multi-user, recipes other than the above.
+Sharing, multi-user, recipes other than the above.

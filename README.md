@@ -33,16 +33,22 @@ measured different steps).
 - The screen wake lock is held while a run is active.
 - `n` / `u` on a keyboard do the same as the two buttons.
 
-## Steam timer
+## Timers
 
-Appears only on the section chosen in settings (default: *Milk — prep & steam*).
-`Run` waits a configurable delay (default 5 s) before counting, then counts up;
-at the target (default 55 s) it beeps, vibrates and says the target was reached,
-and keeps counting so you can see the overshoot.
+A step can carry one or more small timers. Each appears only while its step is
+the current one — press `Run`, it waits its own delay (default 5 s), then counts
+up; at its target (default 55 s) it beeps, vibrates and says the target was
+reached, and keeps counting so you can see the overshoot.
 
-Everything is configurable on the Runs page (the `Runs` chip in the header):
-which section, delay, target, sound, vibration. `Reset everything` there clears
-the run and the history after a second tap; settings survive.
+The default is a single timer named **Steam** on *Milk — prep & steam* with a
+5 s delay and a 55 s target. Add more on the Runs page under **Timers**: name,
+the step it sits on, delay, target, sound, vibration. Several timers on one step
+stack in the panel and run independently.
+
+Editing steps or timers ends a run in progress (the run measured the old steps);
+timers pinned to a removed step move to the first step and say so. `Reset
+everything` clears the run and the history after a second tap; steps and timers
+survive.
 
 ## Keys in localStorage
 
