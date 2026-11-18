@@ -5,6 +5,15 @@ button per step; every step's split and the runs are kept in the browser.
 
 No backend, no build step, no dependencies. `index.html` is the whole app.
 
+## Profiles
+
+A profile is a named set of steps and timers. **Latte** is the default and has
+the workflow below; another drink gets its own profile (New profile), created as
+a copy of the active one so you can trim it down. Switching profile swaps the
+steps and timers everywhere — a run in progress ends, since it was measuring the
+other recipe. Renaming is the Profile name field; Delete this profile asks once
+more (the last profile cannot be deleted). Runs are a single log across profiles.
+
 ## Steps
 
 1. Dose — weigh & spray

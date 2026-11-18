@@ -472,6 +472,70 @@
     border-color: var(--line);
   }
 
+  /* profile switcher ------------------------------------------------------ */
+  .settings.profile {
+    margin-top: 18px;
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .profile-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .profile-row[data-single="true"] { grid-template-columns: 1fr; }
+  .profile-row[data-single="true"] .profile-select { display: none; }
+
+  .profile-select {
+    height: 44px;
+    width: 100%;
+    min-width: 0;
+    padding: 0 30px 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background-color: var(--paper);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236a5b52' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 11px center;
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 550;
+    appearance: none;
+  }
+
+  .profile-select:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  .profile-name-field { margin-top: 12px; }
+
+  .field input[type="text"] {
+    height: 40px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--paper);
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+  }
+
+  .field input[type="text"]:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  #delete-profile {
+    margin-top: 12px;
+    padding: 0;
+    display: block;
+  }
+
   /* settings live on the runs page --------------------------------------- */
   .settings {
     margin-top: 26px;
@@ -720,6 +784,18 @@
       <button class="chip" id="close-history" type="button">Back</button>
       <h2>Runs</h2>
     </div>
+    <section class="settings profile" aria-label="Profile">
+      <h3>Profile</h3>
+      <div class="profile-row" id="profile-row" data-single="true">
+        <select class="profile-select" id="profile-select" aria-label="Switch profile"></select>
+        <button class="chip" id="new-profile" type="button">New profile</button>
+      </div>
+      <label class="field profile-name-field">Profile name
+        <input id="profile-name" type="text" maxlength="40" autocomplete="off">
+      </label>
+      <button class="link danger" id="delete-profile" type="button">Delete this profile</button>
+    </section>
+
     <p class="sheet-sub">Tap a run to see its splits.</p>
     <p class="sheet-empty" id="history-empty" hidden>No finished runs yet — the steps of a run show up here once it ends.</p>
     <ul class="runs" id="runs"></ul>
@@ -762,6 +838,7 @@
   ];
   const MAX_SECTIONS = 20;
   const MAX_TIMERS = 6;
+  const MAX_PROFILES = 8;
   const NAME_MAX = 40;
 
   const RUN_KEY = "latte.run.v1";
@@ -769,6 +846,7 @@
   const SECTIONS_STORE = "latte.sections.v1";
   const TIMERS_KEY = "latte.timers.v1";
   const TIMER_STATE_KEY = "latte.timerstate.v1";
+  const PROFILES_KEY = "latte.profiles.v1";
   const LEGACY_CFG_KEY = "latte.config.v1";
 
   const STALE_MS = 6 * 60 * 60 * 1000;   // a step left open this long is not a split
@@ -796,7 +874,9 @@
     runsPage: $("history-page"), runs: $("runs"), runsEmpty: $("history-empty"), runCount: $("run-count"),
     openRuns: $("open-history"), closeRuns: $("close-history"),
     clear: $("clear"), resetAll: $("reset-all"),
-    editor: $("editor"), addStep: $("add-step")
+    editor: $("editor"), addStep: $("add-step"),
+    profileSelect: $("profile-select"), profileName: $("profile-name"), profileRow: $("profile-row"),
+    newProfile: $("new-profile"), deleteProfile: $("delete-profile"),
   };
 
   // ---- storage -------------------------------------------------------------
@@ -817,18 +897,10 @@
     }
   }
 
-  // ---- steps ---------------------------------------------------------------
+  // ---- profiles ------------------------------------------------------------
+  // A profile is a named set of steps and timers: "Latte" is the default, and a
+  // second drink gets its own. A run always measures the active profile.
   const round1 = (n) => Math.round(n * 10) / 10;
-
-  function loadSections() {
-    const stored = read(SECTIONS_STORE, null);
-    if (!Array.isArray(stored)) return DEFAULT_SECTIONS.slice();
-    const clean = stored.map((name) => String(name).trim()).filter(Boolean).slice(0, MAX_SECTIONS);
-    return clean.length ? clean : DEFAULT_SECTIONS.slice();
-  }
-
-  let sections = loadSections();
-  const sectionsKey = () => sections.join("→");
 
   function clamp(value, range, fallback) {
     const n = Number(value);
@@ -836,14 +908,19 @@
     return Math.min(range[1], Math.max(range[0], Math.round(n)));
   }
 
-  // ---- timers (definitions) -----------------------------------------------
-  // A timer is a name, the step it appears on, and its delay/target/feedback.
-  // The default one is a steam timer on the milk step; add more for other steps.
-  function defaultTimers() {
+  function sanitiseSections(list) {
+    const clean = Array.isArray(list)
+      ? list.map((name) => String(name).trim()).filter(Boolean).slice(0, MAX_SECTIONS)
+      : [];
+    return clean.length ? clean : DEFAULT_SECTIONS.slice();
+  }
+
+  function defaultTimersFor(steps) {
+    const step = steps.includes("Milk — prep & steam") ? "Milk — prep & steam" : steps[0];
     return [{
       id: "steam",
       name: "Steam",
-      step: "Milk — prep & steam",
+      step: step,
       delaySec: 5,
       targetSec: 55,
       sound: true,
@@ -851,12 +928,11 @@
     }];
   }
 
-  function normaliseTimer(raw, index) {
-    const step = sections.includes(raw && raw.step) ? raw.step : sections[0];
+  function normaliseTimer(raw, index, steps) {
     return {
       id: String((raw && raw.id) || "timer-" + (index + 1)),
       name: String((raw && raw.name) || "Timer " + (index + 1)).trim().slice(0, NAME_MAX) || "Timer " + (index + 1),
-      step: step,
+      step: steps.includes(raw && raw.step) ? raw.step : steps[0],
       delaySec: clamp(raw && raw.delaySec, LIMITS.delaySec, 5),
       targetSec: clamp(raw && raw.targetSec, LIMITS.targetSec, 55),
       sound: !(raw && raw.sound === false),
@@ -864,34 +940,68 @@
     };
   }
 
-  function loadTimers() {
-    const stored = read(TIMERS_KEY, null);
-    if (Array.isArray(stored)) {
-      const clean = stored.slice(0, MAX_TIMERS).map(normaliseTimer);
-      return clean.length ? clean : defaultTimers();
+  function sanitiseTimers(list, steps) {
+    const clean = (Array.isArray(list) ? list.slice(0, MAX_TIMERS) : [])
+      .map((raw, index) => normaliseTimer(raw, index, steps));
+    return clean.length ? clean : defaultTimersFor(steps);
+  }
+
+  function loadProfiles() {
+    const stored = read(PROFILES_KEY, null);
+    if (stored && Array.isArray(stored.list) && stored.list.length) {
+      const list = stored.list.slice(0, MAX_PROFILES).map((profile, index) => {
+        const steps = sanitiseSections(profile && profile.sections);
+        return {
+          id: String((profile && profile.id) || "profile-" + (index + 1)),
+          name: String((profile && profile.name) || "Profile " + (index + 1)).trim().slice(0, NAME_MAX) || "Profile " + (index + 1),
+          sections: steps,
+          timers: sanitiseTimers(profile && profile.timers, steps)
+        };
+      });
+      return { active: list.some((p) => p.id === stored.active) ? stored.active : list[0].id, list: list };
     }
 
-    // one-timer config from earlier builds becomes the steam timer
+    // first load with profiles: whatever this browser already has becomes "Latte"
+    const steps = sanitiseSections(read(SECTIONS_STORE, null));
+    let timerList = read(TIMERS_KEY, null);
     const legacy = read(LEGACY_CFG_KEY, null);
-    if (legacy && typeof legacy === "object") {
+
+    if (!Array.isArray(timerList) && legacy && typeof legacy === "object") {
       let step = legacy.steamSection;
       if (typeof step === "number") step = LEGACY_SECTIONS[step];
-      return [normaliseTimer({
+      timerList = [{
         id: "steam",
         name: "Steam",
-        step: sections.includes(step) ? step : sections[0],
+        step: steps.includes(step) ? step : steps[0],
         delaySec: legacy.delaySec,
         targetSec: legacy.targetSec,
         sound: legacy.sound,
         vibrate: legacy.vibrate
-      }, 0)];
+      }];
     }
 
-    return defaultTimers().map(normaliseTimer);
+    return {
+      active: "latte",
+      list: [{ id: "latte", name: "Latte", sections: steps, timers: sanitiseTimers(timerList, steps) }]
+    };
   }
 
-  let timers = loadTimers();
-  if (!read(TIMERS_KEY, null)) write(TIMERS_KEY, timers);   // defaults (or migrated legacy) become editable data
+  let profiles = loadProfiles();
+  const activeProfile = () => profiles.list.find((profile) => profile.id === profiles.active) || profiles.list[0];
+
+  let sections = activeProfile().sections.slice();
+  let timers = activeProfile().timers.map((timer) => Object.assign({}, timer));
+  const sectionsKey = () => sections.join("→");
+
+  function saveProfiles() {
+    const current = activeProfile();
+    current.sections = sections.slice();
+    current.timers = timers.map((timer) => Object.assign({}, timer));
+    write(PROFILES_KEY, profiles);
+  }
+
+  if (!read(PROFILES_KEY, null)) saveProfiles();   // defaults (or a migrated older build) become editable data
+
   let timerStates = read(TIMER_STATE_KEY, {});
   if (!timerStates || typeof timerStates !== "object") timerStates = {};
 
@@ -1321,6 +1431,15 @@
     announce("Back to " + sections[run.index] + ", " + fmt(merged) + " so far.");
   }
 
+  function endRun(message) {
+    run = null;
+    write(RUN_KEY, null);
+    clearTimerStates();
+    stopTicker();
+    dropScreen();
+    if (message) announce(message);
+  }
+
   function resetRun() {
     run = null;
     clearTimerStates();
@@ -1407,16 +1526,7 @@
   // timers pinned to vanished steps move, and a run measuring the old steps ends.
   function applySections(next) {
     sections = next.slice(0, MAX_SECTIONS);
-    write(SECTIONS_STORE, sections);
-
-    if (isRunning()) {
-      run = null;
-      write(RUN_KEY, null);
-      clearTimerStates();
-      stopTicker();
-      dropScreen();
-      announce("Steps changed — the run in progress was ended.");
-    }
+    if (isRunning()) endRun("Steps changed — the run in progress was ended.");
 
     let moved = [];
     timers = timers.map((timer) => {
@@ -1424,10 +1534,9 @@
       moved.push(timer.name);
       return Object.assign({}, timer, { step: sections[0] });
     });
-    if (moved.length) {
-      write(TIMERS_KEY, timers);
-      announce(moved.join(", ") + " moved to " + sections[0] + ".");
-    }
+
+    saveProfiles();
+    if (moved.length) announce(moved.join(", ") + " moved to " + sections[0] + ".");
 
     buildRows();
     renderStepEditor();
@@ -1452,7 +1561,6 @@
     timers = timers.map((timer) => timer.step === previous
       ? Object.assign({}, timer, { step: name })
       : timer);
-    write(TIMERS_KEY, timers);
 
     applySections(next);
   });
@@ -1580,7 +1688,7 @@
   }
 
   function storeTimers() {
-    write(TIMERS_KEY, timers);
+    saveProfiles();
   }
 
   function commitTimers() {
@@ -1659,6 +1767,99 @@
     input.select();
   });
 
+  // ---- profiles ------------------------------------------------------------
+  function renderProfiles() {
+    ui.profileSelect.textContent = "";
+    profiles.list.forEach((profile) => {
+      const option = document.createElement("option");
+      option.value = profile.id;
+      option.textContent = profile.name;
+      ui.profileSelect.appendChild(option);
+    });
+    ui.profileSelect.value = profiles.active;
+    ui.profileRow.dataset.single = profiles.list.length <= 1 ? "true" : "false";
+    ui.profileName.value = activeProfile().name;
+    ui.deleteProfile.hidden = profiles.list.length <= 1;
+    ui.newProfile.disabled = profiles.list.length >= MAX_PROFILES;
+  }
+
+  // project the active profile into the working copies and rebuild every surface
+  function loadActiveProfile() {
+    sections = activeProfile().sections.slice();
+    timers = activeProfile().timers.map((timer) => Object.assign({}, timer));
+    saveProfiles();
+    clearTimerStates();
+    buildRows();
+    renderStepEditor();
+    renderTimerEditor();
+    renderProfiles();
+    render();
+  }
+
+  ui.profileSelect.addEventListener("change", () => {
+    const id = ui.profileSelect.value;
+    if (!profiles.list.some((profile) => profile.id === id) || id === profiles.active) return;
+    if (isRunning()) endRun("Profile switched — the run in progress was ended.");
+    profiles.active = id;
+    loadActiveProfile();
+    announce("Profile: " + activeProfile().name + ".");
+  });
+
+  ui.profileName.addEventListener("change", () => {
+    const name = ui.profileName.value.trim().slice(0, NAME_MAX) || activeProfile().name;
+    ui.profileName.value = name;
+    activeProfile().name = name;
+    saveProfiles();
+    renderProfiles();
+  });
+
+  ui.newProfile.addEventListener("click", () => {
+    if (profiles.list.length >= MAX_PROFILES) return;
+    if (isRunning()) endRun("Profile switched — the run in progress was ended.");
+    const id = "profile-" + Date.now().toString(36);
+
+    // a new profile starts as a copy of the one you are looking at
+    profiles.list.push({
+      id: id,
+      name: "Profile " + (profiles.list.length + 1),
+      sections: sections.slice(),
+      timers: timers.map((timer) => Object.assign({}, timer))
+    });
+    profiles.active = id;
+    loadActiveProfile();
+    ui.profileName.focus();
+    ui.profileName.select();
+    announce("New profile created.");
+  });
+
+  let profileDeleteArmed = false;
+  let profileDeleteTimer = null;
+
+  ui.deleteProfile.addEventListener("click", () => {
+    if (profiles.list.length <= 1) return;
+
+    if (!profileDeleteArmed) {
+      profileDeleteArmed = true;
+      ui.deleteProfile.textContent = "Tap again to delete";
+      profileDeleteTimer = setTimeout(() => {
+        profileDeleteArmed = false;
+        ui.deleteProfile.textContent = "Delete this profile";
+      }, 4000);
+      return;
+    }
+
+    clearTimeout(profileDeleteTimer);
+    profileDeleteArmed = false;
+    ui.deleteProfile.textContent = "Delete this profile";
+
+    const removed = activeProfile();
+    if (isRunning()) endRun("Profile deleted — the run in progress was ended.");
+    profiles.list = profiles.list.filter((profile) => profile.id !== removed.id);
+    profiles.active = profiles.list[0].id;
+    loadActiveProfile();
+    announce("Deleted " + removed.name + ".");
+  });
+
   // ---- wiring --------------------------------------------------------------
   function applyRoute() {
     const open = location.hash === "#runs";
@@ -1726,6 +1927,7 @@
   buildRows();
   renderStepEditor();
   renderTimerEditor();
+  renderProfiles();
   render();
   applyRoute();
 
