@@ -41,6 +41,9 @@
 
   * { box-sizing: border-box; }
 
+  /* classes set display, so make the hidden attribute win everywhere */
+  [hidden] { display: none !important; }
+
   html, body {
     margin: 0;
     background: var(--paper);
@@ -288,6 +291,15 @@
     transform: none;
   }
 
+  /* a disabled primary reads as unavailable, not as a quieter button */
+  .btn-primary[disabled] {
+    opacity: 1;
+    background: var(--surface);
+    color: var(--ink-2);
+    border-color: var(--line);
+    box-shadow: none;
+  }
+
   /* history --------------------------------------------------------------- */
   /* run list: a separate page, reached from the header chip --------------- */
   .sheet {
@@ -451,6 +463,14 @@
   .splits .at { font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--ink-2); }
 
 
+  .empty-note {
+    margin: 18px 0 0;
+    font-size: 14px;
+    color: var(--ink-2);
+  }
+
+  .empty-note[hidden] { display: none; }
+
   /* timers for the current step ------------------------------------------- */
   .timers {
     margin: 20px -12px 0;
@@ -569,6 +589,53 @@
 
   .menu-new { color: var(--ink-2); grid-template-columns: 16px 1fr; }
   .menu-new:hover { color: var(--ink); }
+
+  .menu-form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    padding: 2px;
+  }
+
+  .menu-form[hidden] { display: none; }
+
+  .menu-input {
+    height: 38px;
+    min-width: 0;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper);
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+  }
+
+  .menu-input:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  .menu-create {
+    height: 38px;
+    padding: 0 14px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--current);
+    color: var(--current-ink);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 560;
+    cursor: pointer;
+  }
+
+  .menu-create:disabled {
+    opacity: 1;
+    background: var(--paper);
+    border-color: var(--line);
+    color: var(--ink-2);
+    cursor: default;
+  }
 
   /* a settings row that happens to be editable (same language as the lists) */
   .row-field {
@@ -854,7 +921,7 @@
 <main class="app">
   <header class="head">
     <div class="profile-wrap">
-      <button class="profile-btn" id="open-profiles" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="profile-menu">
+      <button class="profile-btn" id="open-profiles" type="button" aria-expanded="false" aria-controls="profile-menu">
         <span class="profile-title" id="profile-title">Latte</span>
         <svg width="12" height="8" viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -862,6 +929,10 @@
         <ul class="menu-list" id="profile-list"></ul>
         <div class="menu-foot">
           <button class="menu-item menu-new" id="new-profile" type="button"><span class="tick"></span><span>New profile</span></button>
+          <form class="menu-form" id="new-profile-form" hidden>
+            <input class="menu-input" id="new-profile-name" type="text" maxlength="40" placeholder="Name" autocomplete="off" aria-label="New profile name">
+            <button class="menu-create" type="submit">Create</button>
+          </form>
         </div>
       </div>
     </div>
@@ -871,7 +942,8 @@
     </div>
   </header>
 
-  <ol class="steps" id="steps" aria-label="Latte sections"></ol>
+  <ol class="steps" id="steps" aria-label="Steps"></ol>
+  <p class="empty-note" id="steps-empty" hidden>No steps yet — add them in Settings.</p>
 
   <div class="timers" id="timers" hidden></div>
 
@@ -985,6 +1057,8 @@
     profileName: $("profile-name"), profileTitle: $("profile-title"), profileList: $("profile-list"),
     profileMenu: $("profile-menu"), openProfiles: $("open-profiles"),
     newProfile: $("new-profile"), deleteProfile: $("delete-profile"),
+    newProfileForm: $("new-profile-form"), newProfileName: $("new-profile-name"),
+    stepsEmpty: $("steps-empty"),
   };
 
   // ---- storage -------------------------------------------------------------
@@ -1016,11 +1090,11 @@
     return Math.min(range[1], Math.max(range[0], Math.round(n)));
   }
 
+  // An array means "this is the profile's step list" — an empty array is a
+  // profile you have not filled in yet, not a reason to inject defaults.
   function sanitiseSections(list) {
-    const clean = Array.isArray(list)
-      ? list.map((name) => String(name).trim()).filter(Boolean).slice(0, MAX_SECTIONS)
-      : [];
-    return clean.length ? clean : DEFAULT_SECTIONS.slice();
+    if (!Array.isArray(list)) return DEFAULT_SECTIONS.slice();
+    return list.map((name) => String(name).trim()).filter(Boolean).slice(0, MAX_SECTIONS);
   }
 
   function defaultTimersFor(steps) {
@@ -1040,7 +1114,7 @@
     return {
       id: String((raw && raw.id) || "timer-" + (index + 1)),
       name: String((raw && raw.name) || "Timer " + (index + 1)).trim().slice(0, NAME_MAX) || "Timer " + (index + 1),
-      step: steps.includes(raw && raw.step) ? raw.step : steps[0],
+      step: steps.includes(raw && raw.step) ? raw.step : (steps[0] || ""),
       delaySec: clamp(raw && raw.delaySec, LIMITS.delaySec, 5),
       targetSec: clamp(raw && raw.targetSec, LIMITS.targetSec, 55),
       sound: !(raw && raw.sound === false),
@@ -1049,9 +1123,10 @@
   }
 
   function sanitiseTimers(list, steps) {
-    const clean = (Array.isArray(list) ? list.slice(0, MAX_TIMERS) : [])
-      .map((raw, index) => normaliseTimer(raw, index, steps));
-    return clean.length ? clean : defaultTimersFor(steps);
+    if (!Array.isArray(list)) return steps.length ? defaultTimersFor(steps) : [];
+    return list.slice(0, MAX_TIMERS)
+      .map((raw, index) => normaliseTimer(raw, index, steps))
+      .filter((timer) => timer.step);        // keep the timer; only an empty profile drops it
   }
 
   function loadProfiles() {
@@ -1203,6 +1278,8 @@
 
     ui.actions.dataset.mode = running ? "running" : "idle";
     ui.next.textContent = running ? "Next" : (finished ? "Start new run" : "Start");
+    ui.next.disabled = !running && sections.length === 0;
+    ui.stepsEmpty.hidden = sections.length > 0;
     ui.undo.setAttribute("aria-label", running && run.index === 0
       ? "Undo — cancels this run"
       : "Undo — merges this section's time into the previous one");
@@ -1478,6 +1555,11 @@
   }
 
   function nextSection() {
+    if (!sections.length) {
+      announce("No steps yet — add them in Settings.");
+      return;
+    }
+
     if (!isRunning()) {
       startRun();
       return;
@@ -1645,7 +1727,7 @@
     });
 
     saveProfiles();
-    if (moved.length) announce(moved.join(", ") + " moved to " + sections[0] + ".");
+    if (moved.length && sections.length) announce(moved.join(", ") + " moved to " + sections[0] + ".");
 
     buildRows();
     renderStepEditor();
@@ -1889,7 +1971,6 @@
       const button = document.createElement("button");
       button.type = "button";
       button.className = "menu-item";
-      button.setAttribute("role", "menuitem");
       button.dataset.id = profile.id;
       button.setAttribute("aria-current", profile.id === profiles.active ? "true" : "false");
 
@@ -1910,13 +1991,20 @@
     ui.newProfile.disabled = profiles.list.length >= MAX_PROFILES;
   }
 
+  function resetCreateForm() {
+    ui.newProfileForm.hidden = true;
+    ui.newProfile.hidden = false;
+    ui.newProfileName.value = "";
+    ui.newProfileForm.querySelector(".menu-create").disabled = true;
+  }
+
   function setMenu(open) {
     ui.profileMenu.hidden = !open;
     ui.openProfiles.setAttribute("aria-expanded", open ? "true" : "false");
-    if (open) {
-      const current = ui.profileList.querySelector('[aria-current="true"]');
-      if (current) current.focus();
-    }
+    resetCreateForm();
+    if (!open) return;
+    const current = ui.profileList.querySelector('[aria-current="true"]');
+    if (current) current.focus();
   }
 
   const menuOpen = () => !ui.profileMenu.hidden;
@@ -1930,10 +2018,14 @@
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && menuOpen()) {
-      setMenu(false);
-      ui.openProfiles.focus();
+    if (event.key !== "Escape" || !menuOpen()) return;
+    if (!ui.newProfileForm.hidden) {
+      resetCreateForm();
+      ui.newProfile.focus();
+      return;
     }
+    setMenu(false);
+    ui.openProfiles.focus();
   });
 
   // project the active profile into the working copies and rebuild every surface
@@ -1951,6 +2043,7 @@
 
   function switchProfile(id) {
     setMenu(false);
+    ui.openProfiles.focus();
     if (!profiles.list.some((profile) => profile.id === id) || id === profiles.active) return;
     if (isRunning()) endRun("Profile switched — the run in progress was ended.");
     profiles.active = id;
@@ -1971,22 +2064,37 @@
     renderProfiles();
   });
 
+  // "New profile" asks for a name first, then creates an empty profile
   ui.newProfile.addEventListener("click", () => {
     if (profiles.list.length >= MAX_PROFILES) return;
-    if (isRunning()) endRun("Profile switched — the run in progress was ended.");
-    const id = "profile-" + Date.now().toString(36);
+    ui.newProfile.hidden = true;
+    ui.newProfileForm.hidden = false;
+    ui.newProfileForm.querySelector(".menu-create").disabled = true;
+    ui.newProfileName.focus();
+  });
 
-    // a new profile starts as a copy of the one you are looking at
+  ui.newProfileName.addEventListener("input", () => {
+    ui.newProfileForm.querySelector(".menu-create").disabled = !ui.newProfileName.value.trim();
+  });
+
+  ui.newProfileForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const name = ui.newProfileName.value.trim().slice(0, NAME_MAX);
+    if (!name || profiles.list.length >= MAX_PROFILES) return;
+
+    if (isRunning()) endRun("Profile switched — the run in progress was ended.");
+
     profiles.list.push({
-      id: id,
-      name: "Profile " + (profiles.list.length + 1),
-      sections: sections.slice(),
-      timers: timers.map((timer) => Object.assign({}, timer))
+      id: "profile-" + Date.now().toString(36),
+      name: name,
+      sections: [],
+      timers: []
     });
-    profiles.active = id;
+    profiles.active = profiles.list[profiles.list.length - 1].id;
     loadActiveProfile();
     setMenu(false);
-    announce("New profile created — rename it in Settings.");
+    ui.openProfiles.focus();
+    announce("Created " + name + " — add its steps in Settings.");
   });
 
   let profileDeleteArmed = false;

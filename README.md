@@ -13,8 +13,8 @@ the right of the header), together with Runs, Steps and Timers.
 
 
 A profile is a named set of steps and timers. **Latte** is the default and has
-the workflow below; another drink gets its own profile (New profile), created as
-a copy of the active one so you can trim it down. Switching profile swaps the
+the workflow below; another drink gets its own profile: `New profile` asks for a name and
+starts it empty, so each profile's steps and timers are its own. Switching profile swaps the
 steps and timers everywhere — a run in progress ends, since it was measuring the
 other recipe. Renaming is the Profile name field; Delete this profile asks once
 more (the last profile cannot be deleted). Runs are a single log across profiles.
