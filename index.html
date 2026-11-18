@@ -120,12 +120,36 @@
     color: var(--ink);
   }
 
-  h1 {
-    margin: 0;
+  .profile-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
     font-size: 23px;
     font-weight: 660;
     letter-spacing: -0.018em;
-    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .profile-btn svg { flex: 0 0 auto; color: var(--ink-2); }
+  .profile-btn:active { opacity: 0.55; }
+
+  .profile-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .profile-btn:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+    border-radius: 6px;
   }
 
   .total {
@@ -296,7 +320,7 @@
   }
 
   .sheet-empty {
-    padding: 22px 0;
+    padding: 6px 0 2px;
     font-size: 14px;
     color: var(--ink-2);
   }
@@ -335,6 +359,8 @@
     gap: 8px;
     margin-top: 18px;
   }
+
+  .runs:empty { display: none; }
 
   .run {
     display: grid;
@@ -472,68 +498,61 @@
     border-color: var(--line);
   }
 
-  /* profile switcher ------------------------------------------------------ */
-  .settings.profile {
-    margin-top: 18px;
-    padding-top: 0;
-    border-top: 0;
-  }
-
-  .profile-row {
+  /* profiles page ---------------------------------------------------------- */
+  .profile-list {
+    list-style: none;
+    margin: 16px 0 12px;
+    padding: 0;
     display: grid;
-    grid-template-columns: 1fr auto;
     gap: 8px;
-    align-items: center;
   }
 
-  .profile-row[data-single="true"] { grid-template-columns: 1fr; }
-  .profile-row[data-single="true"] .profile-select { display: none; }
-
-  .profile-select {
-    height: 44px;
+  .profile-item {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    align-items: center;
+    gap: 10px;
     width: 100%;
-    min-width: 0;
-    padding: 0 30px 0 12px;
+    min-height: 56px;
+    padding: 0 14px;
     border: 1px solid var(--line);
     border-radius: 10px;
-    background-color: var(--paper);
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236a5b52' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 11px center;
+    background: var(--surface);
     color: var(--ink);
     font: inherit;
     font-size: 15px;
-    font-weight: 550;
-    appearance: none;
+    text-align: left;
+    cursor: pointer;
   }
 
-  .profile-select:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 1px;
-  }
+  .profile-item:hover { border-color: var(--ink-2); }
+  .profile-item[aria-current="true"] { font-weight: 600; }
 
-  .profile-name-field { margin-top: 12px; }
-
-  .field input[type="text"] {
-    height: 40px;
-    padding: 0 10px;
-    border: 1px solid var(--line);
-    border-radius: 9px;
-    background: var(--paper);
+  .profile-item .tick {
+    visibility: hidden;
     color: var(--ink);
-    font: inherit;
-    font-size: 15px;
+    display: grid;
+    place-items: center;
   }
 
-  .field input[type="text"]:focus-visible {
+  .profile-item[aria-current="true"] .tick { visibility: visible; }
+
+  .profile-item .meta {
+    font-size: 12.5px;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .profile-item:focus-visible {
     outline: 2px solid var(--focus);
-    outline-offset: 1px;
+    outline-offset: 2px;
   }
 
-  #delete-profile {
-    margin-top: 12px;
-    padding: 0;
-    display: block;
+  .sheet-head .count {
+    margin-left: 6px;
+    font-weight: 500;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
   }
 
   /* settings live on the runs page --------------------------------------- */
@@ -625,6 +644,18 @@
 
   .chip:disabled { opacity: 0.45; cursor: default; }
 
+  .chip-wide {
+    width: 100%;
+    height: 44px;
+    font-size: 15px;
+    font-weight: 550;
+    color: var(--ink);
+    background: var(--surface);
+    border-color: var(--line);
+  }
+
+  .chip-wide:hover { border-color: var(--ink-2); }
+
   .hint {
     margin: 8px 0 0;
     font-size: 12.5px;
@@ -664,6 +695,12 @@
     outline: 2px solid var(--focus);
     outline-offset: 1px;
     border-radius: 6px;
+  }
+
+  .settings:first-of-type {
+    margin-top: 16px;
+    padding-top: 0;
+    border-top: 0;
   }
 
   .settings h3 {
@@ -760,10 +797,13 @@
 <body>
 <main class="app">
   <header class="head">
-    <h1>Latte</h1>
+    <button class="profile-btn" id="open-profiles" type="button" aria-label="Switch profile">
+      <span class="profile-title" id="profile-title">Latte</span>
+      <svg width="12" height="8" viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
     <div class="head-right">
       <div class="total" id="total"></div>
-      <button class="chip" id="open-history" type="button">Runs <span class="count" id="run-count">0</span></button>
+      <button class="chip" id="open-history" type="button">Settings</button>
     </div>
   </header>
 
@@ -778,39 +818,51 @@
 
 </main>
 
-<section class="sheet" id="history-page" aria-label="Runs and settings" hidden>
+<section class="sheet" id="profiles-page" aria-label="Profiles" hidden>
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <button class="chip" id="close-profiles" type="button">Back</button>
+      <h2>Profiles</h2>
+    </div>
+    <ul class="profile-list" id="profile-list"></ul>
+    <button class="chip chip-wide" id="new-profile" type="button">New profile</button>
+    <p class="hint">A profile holds its own steps and timers. A new one starts as a copy of the active profile.</p>
+  </div>
+</section>
+
+<section class="sheet" id="history-page" aria-label="Settings" hidden>
   <div class="sheet-inner">
     <div class="sheet-head">
       <button class="chip" id="close-history" type="button">Back</button>
-      <h2>Runs</h2>
+      <h2>Settings</h2>
     </div>
-    <section class="settings profile" aria-label="Profile">
+
+    <section class="settings" aria-label="Runs">
+      <h3>Runs<span class="count" id="run-count"></span></h3>
+      <p class="sheet-sub" id="runs-hint">Tap a run to see its splits.</p>
+      <p class="sheet-empty" id="history-empty" hidden>No finished runs yet — the steps of a run show up here once it ends.</p>
+      <ul class="runs" id="runs"></ul>
+    </section>
+
+    <section class="settings" aria-label="Profile">
       <h3>Profile</h3>
-      <div class="profile-row" id="profile-row" data-single="true">
-        <select class="profile-select" id="profile-select" aria-label="Switch profile"></select>
-        <button class="chip" id="new-profile" type="button">New profile</button>
-      </div>
-      <label class="field profile-name-field">Profile name
+      <label class="field">Profile name
         <input id="profile-name" type="text" maxlength="40" autocomplete="off">
       </label>
       <button class="link danger" id="delete-profile" type="button">Delete this profile</button>
     </section>
 
-    <p class="sheet-sub">Tap a run to see its splits.</p>
-    <p class="sheet-empty" id="history-empty" hidden>No finished runs yet — the steps of a run show up here once it ends.</p>
-    <ul class="runs" id="runs"></ul>
-
     <section class="settings" aria-label="Steps">
       <h3>Steps</h3>
       <ul class="editor" id="editor"></ul>
-      <button class="chip" id="add-step" type="button">Add step</button>
+      <button class="chip chip-wide" id="add-step" type="button">Add step</button>
       <p class="hint">Drag the handle to reorder. Editing the steps ends a run in progress.</p>
     </section>
 
     <section class="settings" aria-label="Timers">
       <h3>Timers</h3>
       <div id="timer-editor"></div>
-      <button class="chip" id="add-timer" type="button">Add timer</button>
+      <button class="chip chip-wide" id="add-timer" type="button">Add timer</button>
       <p class="hint">A timer appears on its step only. Run waits the start delay, then counts up; at the alert time it beeps and/or vibrates. Steam is the default, on the milk step.</p>
     </section>
 
@@ -871,11 +923,13 @@
     steps: $("steps"), actions: $("actions"), next: $("next"), undo: $("undo"),
     total: $("total"), say: $("say"),
     timers: $("timers"), timerEditor: $("timer-editor"), addTimer: $("add-timer"),
-    runsPage: $("history-page"), runs: $("runs"), runsEmpty: $("history-empty"), runCount: $("run-count"),
+    runsPage: $("history-page"), runs: $("runs"), runsEmpty: $("history-empty"),
+    runsHint: $("runs-hint"), runCount: $("run-count"),
     openRuns: $("open-history"), closeRuns: $("close-history"),
     clear: $("clear"), resetAll: $("reset-all"),
     editor: $("editor"), addStep: $("add-step"),
-    profileSelect: $("profile-select"), profileName: $("profile-name"), profileRow: $("profile-row"),
+    profileName: $("profile-name"), profileTitle: $("profile-title"), profileList: $("profile-list"),
+    profilesPage: $("profiles-page"), openProfiles: $("open-profiles"), closeProfiles: $("close-profiles"),
     newProfile: $("new-profile"), deleteProfile: $("delete-profile"),
   };
 
@@ -1118,8 +1172,9 @@
   }
 
   function renderRuns() {
-    ui.runCount.textContent = String(history.length);
+    ui.runCount.textContent = history.length ? String(history.length) : "";
     ui.runsEmpty.hidden = history.length > 0;
+    ui.runsHint.hidden = history.length === 0;
     ui.clear.hidden = history.length === 0;
 
     ui.runs.textContent = "";
@@ -1768,16 +1823,37 @@
   });
 
   // ---- profiles ------------------------------------------------------------
+  const TICK_ICON = '<svg width="12" height="10" viewBox="0 0 12 10" aria-hidden="true">'
+    + '<path d="M1 5l3.2 3.2L11 1.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
   function renderProfiles() {
-    ui.profileSelect.textContent = "";
+    ui.profileTitle.textContent = activeProfile().name;
+
+    ui.profileList.textContent = "";
     profiles.list.forEach((profile) => {
-      const option = document.createElement("option");
-      option.value = profile.id;
-      option.textContent = profile.name;
-      ui.profileSelect.appendChild(option);
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "profile-item";
+      button.dataset.id = profile.id;
+      button.setAttribute("aria-current", profile.id === profiles.active ? "true" : "false");
+
+      const tick = document.createElement("span");
+      tick.className = "tick";
+      tick.innerHTML = TICK_ICON;
+
+      const name = document.createElement("span");
+      name.textContent = profile.name;
+
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = profile.sections.length + (profile.sections.length === 1 ? " step" : " steps");
+
+      button.append(tick, name, meta);
+      li.appendChild(button);
+      ui.profileList.appendChild(li);
     });
-    ui.profileSelect.value = profiles.active;
-    ui.profileRow.dataset.single = profiles.list.length <= 1 ? "true" : "false";
+
     ui.profileName.value = activeProfile().name;
     ui.deleteProfile.hidden = profiles.list.length <= 1;
     ui.newProfile.disabled = profiles.list.length >= MAX_PROFILES;
@@ -1796,13 +1872,27 @@
     render();
   }
 
-  ui.profileSelect.addEventListener("change", () => {
-    const id = ui.profileSelect.value;
-    if (!profiles.list.some((profile) => profile.id === id) || id === profiles.active) return;
+  function switchProfile(id) {
+    if (!profiles.list.some((profile) => profile.id === id) || id === profiles.active) {
+      if (location.hash === "#profiles") location.hash = "";
+      return;
+    }
     if (isRunning()) endRun("Profile switched — the run in progress was ended.");
     profiles.active = id;
     loadActiveProfile();
+    if (location.hash === "#profiles") location.hash = "";
     announce("Profile: " + activeProfile().name + ".");
+  }
+
+  ui.profileList.addEventListener("click", (event) => {
+    const button = event.target.closest(".profile-item");
+    if (button) switchProfile(button.dataset.id);
+  });
+
+  ui.openProfiles.addEventListener("click", () => { location.hash = "profiles"; });
+  ui.closeProfiles.addEventListener("click", () => {
+    if (location.hash === "#profiles") location.hash = "";
+    else applyRoute();
   });
 
   ui.profileName.addEventListener("change", () => {
@@ -1827,9 +1917,7 @@
     });
     profiles.active = id;
     loadActiveProfile();
-    ui.profileName.focus();
-    ui.profileName.select();
-    announce("New profile created.");
+    announce("New profile created — rename it under Settings.");
   });
 
   let profileDeleteArmed = false;
@@ -1862,9 +1950,12 @@
 
   // ---- wiring --------------------------------------------------------------
   function applyRoute() {
-    const open = location.hash === "#runs";
-    ui.runsPage.hidden = !open;
-    if (open) renderRuns();
+    const runs = location.hash === "#runs";
+    const profilesOpen = location.hash === "#profiles";
+    ui.runsPage.hidden = !runs;
+    ui.profilesPage.hidden = !profilesOpen;
+    if (runs) renderRuns();
+    if (profilesOpen) renderProfiles();
   }
 
   ui.next.addEventListener("click", nextSection);

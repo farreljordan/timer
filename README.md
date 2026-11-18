@@ -7,6 +7,11 @@ No backend, no build step, no dependencies. `index.html` is the whole app.
 
 ## Profiles
 
+The title in the top-left **is** the profile switcher: tap it for the list of
+profiles and `New profile`. Renaming and deleting live in Settings (the chip on
+the right of the header), together with Runs, Steps and Timers.
+
+
 A profile is a named set of steps and timers. **Latte** is the default and has
 the workflow below; another drink gets its own profile (New profile), created as
 a copy of the active one so you can trim it down. Switching profile swaps the
