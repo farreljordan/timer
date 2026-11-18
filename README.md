@@ -7,8 +7,8 @@ No backend, no build step, no dependencies. `index.html` is the whole app.
 
 ## Profiles
 
-The title in the top-left **is** the profile switcher: tap it for the list of
-profiles and `New profile`. Renaming and deleting live in Settings (the chip on
+The title in the top-left **is** the profile switcher: tapping it drops a menu of
+profiles (check on the active one) with `New profile` at the bottom. Renaming and deleting live in Settings (the chip on
 the right of the header), together with Runs, Steps and Timers.
 
 

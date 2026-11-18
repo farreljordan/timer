@@ -137,7 +137,15 @@
     cursor: pointer;
   }
 
-  .profile-btn svg { flex: 0 0 auto; color: var(--ink-2); }
+  .profile-btn svg {
+    flex: 0 0 auto;
+    color: var(--ink-2);
+    transition: transform 160ms ease-out;
+  }
+
+  .profile-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+
+  .menu, .menu-item { transition: background-color 120ms ease-out; }
   .profile-btn:active { opacity: 0.55; }
 
   .profile-title {
@@ -498,57 +506,105 @@
     border-color: var(--line);
   }
 
-  /* profiles page ---------------------------------------------------------- */
-  .profile-list {
-    list-style: none;
-    margin: 16px 0 12px;
-    padding: 0;
-    display: grid;
-    gap: 8px;
+  /* profile menu (drops from the title) ------------------------------------ */
+  .profile-wrap { position: relative; min-width: 0; }
+
+  .menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    z-index: 30;
+    min-width: 236px;
+    max-width: min(320px, calc(100vw - 44px));
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    box-shadow: 0 14px 30px -16px rgba(27, 21, 18, 0.5), 0 2px 6px rgba(27, 21, 18, 0.08);
   }
 
-  .profile-item {
+  .menu[hidden] { display: none; }
+
+  .menu-list { list-style: none; margin: 0; padding: 0; }
+
+  .menu-item {
     display: grid;
-    grid-template-columns: 18px 1fr auto;
+    grid-template-columns: 16px 1fr;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
-    min-height: 56px;
-    padding: 0 14px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: var(--surface);
+    min-height: 40px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
     color: var(--ink);
     font: inherit;
     font-size: 15px;
     text-align: left;
     cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .profile-item:hover { border-color: var(--ink-2); }
-  .profile-item[aria-current="true"] { font-weight: 600; }
+  .menu-item:hover { background: var(--paper); }
+  .menu-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .menu-item[aria-current="true"] { font-weight: 600; }
 
-  .profile-item .tick {
+  .menu-item .tick {
     visibility: hidden;
-    color: var(--ink);
     display: grid;
     place-items: center;
+    color: var(--ink);
   }
 
-  .profile-item[aria-current="true"] .tick { visibility: visible; }
+  .menu-item[aria-current="true"] .tick { visibility: visible; }
 
-  .profile-item .meta {
-    font-size: 12.5px;
+  .menu-foot {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid var(--line-soft);
+  }
+
+  .menu-new { color: var(--ink-2); grid-template-columns: 16px 1fr; }
+  .menu-new:hover { color: var(--ink); }
+
+  /* a settings row that happens to be editable (same language as the lists) */
+  .row-field {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 12px;
+    min-height: 46px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--paper);
+  }
+
+  .row-field:focus-within { border-color: var(--ink-2); }
+
+  .row-label {
+    font-size: 13px;
     color: var(--ink-2);
-    font-variant-numeric: tabular-nums;
   }
 
-  .profile-item:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 2px;
+  .row-input {
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    min-width: 0;
+    height: 44px;
+    padding: 0;
+    text-align: right;
   }
 
-  .sheet-head .count {
+  .row-input:focus { outline: none; }
+
+  .settings h3 .count {
     margin-left: 6px;
     font-weight: 500;
     color: var(--ink-2);
@@ -797,10 +853,18 @@
 <body>
 <main class="app">
   <header class="head">
-    <button class="profile-btn" id="open-profiles" type="button" aria-label="Switch profile">
-      <span class="profile-title" id="profile-title">Latte</span>
-      <svg width="12" height="8" viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    </button>
+    <div class="profile-wrap">
+      <button class="profile-btn" id="open-profiles" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="profile-menu">
+        <span class="profile-title" id="profile-title">Latte</span>
+        <svg width="12" height="8" viewBox="0 0 12 8" aria-hidden="true"><path d="M1 1.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="menu" id="profile-menu" hidden>
+        <ul class="menu-list" id="profile-list"></ul>
+        <div class="menu-foot">
+          <button class="menu-item menu-new" id="new-profile" type="button"><span class="tick"></span><span>New profile</span></button>
+        </div>
+      </div>
+    </div>
     <div class="head-right">
       <div class="total" id="total"></div>
       <button class="chip" id="open-history" type="button">Settings</button>
@@ -818,17 +882,6 @@
 
 </main>
 
-<section class="sheet" id="profiles-page" aria-label="Profiles" hidden>
-  <div class="sheet-inner">
-    <div class="sheet-head">
-      <button class="chip" id="close-profiles" type="button">Back</button>
-      <h2>Profiles</h2>
-    </div>
-    <ul class="profile-list" id="profile-list"></ul>
-    <button class="chip chip-wide" id="new-profile" type="button">New profile</button>
-    <p class="hint">A profile holds its own steps and timers. A new one starts as a copy of the active profile.</p>
-  </div>
-</section>
 
 <section class="sheet" id="history-page" aria-label="Settings" hidden>
   <div class="sheet-inner">
@@ -846,8 +899,9 @@
 
     <section class="settings" aria-label="Profile">
       <h3>Profile</h3>
-      <label class="field">Profile name
-        <input id="profile-name" type="text" maxlength="40" autocomplete="off">
+      <label class="row-field">
+        <span class="row-label">Name</span>
+        <input class="row-input" id="profile-name" type="text" maxlength="40" autocomplete="off" aria-label="Profile name">
       </label>
       <button class="link danger" id="delete-profile" type="button">Delete this profile</button>
     </section>
@@ -929,7 +983,7 @@
     clear: $("clear"), resetAll: $("reset-all"),
     editor: $("editor"), addStep: $("add-step"),
     profileName: $("profile-name"), profileTitle: $("profile-title"), profileList: $("profile-list"),
-    profilesPage: $("profiles-page"), openProfiles: $("open-profiles"), closeProfiles: $("close-profiles"),
+    profileMenu: $("profile-menu"), openProfiles: $("open-profiles"),
     newProfile: $("new-profile"), deleteProfile: $("delete-profile"),
   };
 
@@ -1834,7 +1888,8 @@
       const li = document.createElement("li");
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "profile-item";
+      button.className = "menu-item";
+      button.setAttribute("role", "menuitem");
       button.dataset.id = profile.id;
       button.setAttribute("aria-current", profile.id === profiles.active ? "true" : "false");
 
@@ -1845,11 +1900,7 @@
       const name = document.createElement("span");
       name.textContent = profile.name;
 
-      const meta = document.createElement("span");
-      meta.className = "meta";
-      meta.textContent = profile.sections.length + (profile.sections.length === 1 ? " step" : " steps");
-
-      button.append(tick, name, meta);
+      button.append(tick, name);
       li.appendChild(button);
       ui.profileList.appendChild(li);
     });
@@ -1858,6 +1909,32 @@
     ui.deleteProfile.hidden = profiles.list.length <= 1;
     ui.newProfile.disabled = profiles.list.length >= MAX_PROFILES;
   }
+
+  function setMenu(open) {
+    ui.profileMenu.hidden = !open;
+    ui.openProfiles.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) {
+      const current = ui.profileList.querySelector('[aria-current="true"]');
+      if (current) current.focus();
+    }
+  }
+
+  const menuOpen = () => !ui.profileMenu.hidden;
+
+  ui.openProfiles.addEventListener("click", () => setMenu(!menuOpen()));
+
+  document.addEventListener("pointerdown", (event) => {
+    if (!menuOpen()) return;
+    if (event.target.closest(".profile-wrap")) return;
+    setMenu(false);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && menuOpen()) {
+      setMenu(false);
+      ui.openProfiles.focus();
+    }
+  });
 
   // project the active profile into the working copies and rebuild every surface
   function loadActiveProfile() {
@@ -1873,26 +1950,17 @@
   }
 
   function switchProfile(id) {
-    if (!profiles.list.some((profile) => profile.id === id) || id === profiles.active) {
-      if (location.hash === "#profiles") location.hash = "";
-      return;
-    }
+    setMenu(false);
+    if (!profiles.list.some((profile) => profile.id === id) || id === profiles.active) return;
     if (isRunning()) endRun("Profile switched — the run in progress was ended.");
     profiles.active = id;
     loadActiveProfile();
-    if (location.hash === "#profiles") location.hash = "";
     announce("Profile: " + activeProfile().name + ".");
   }
 
   ui.profileList.addEventListener("click", (event) => {
-    const button = event.target.closest(".profile-item");
+    const button = event.target.closest(".menu-item");
     if (button) switchProfile(button.dataset.id);
-  });
-
-  ui.openProfiles.addEventListener("click", () => { location.hash = "profiles"; });
-  ui.closeProfiles.addEventListener("click", () => {
-    if (location.hash === "#profiles") location.hash = "";
-    else applyRoute();
   });
 
   ui.profileName.addEventListener("change", () => {
@@ -1917,7 +1985,8 @@
     });
     profiles.active = id;
     loadActiveProfile();
-    announce("New profile created — rename it under Settings.");
+    setMenu(false);
+    announce("New profile created — rename it in Settings.");
   });
 
   let profileDeleteArmed = false;
@@ -1951,11 +2020,8 @@
   // ---- wiring --------------------------------------------------------------
   function applyRoute() {
     const runs = location.hash === "#runs";
-    const profilesOpen = location.hash === "#profiles";
     ui.runsPage.hidden = !runs;
-    ui.profilesPage.hidden = !profilesOpen;
     if (runs) renderRuns();
-    if (profilesOpen) renderProfiles();
   }
 
   ui.next.addEventListener("click", nextSection);
