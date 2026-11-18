@@ -46,9 +46,9 @@ the step it sits on, delay, target, sound, vibration. Several timers on one step
 stack in the panel and run independently.
 
 Editing steps or timers ends a run in progress (the run measured the old steps);
-timers pinned to a removed step move to the first step and say so. `Reset
-everything` clears the run and the history after a second tap; steps and timers
-survive.
+timers pinned to a removed step move to the first step and say so. Each past run has its own × to delete it
+(tap the row to see its splits); `Reset everything` clears the run and the whole
+history after a second tap. Steps and timers survive both.
 
 ## Keys in localStorage
 

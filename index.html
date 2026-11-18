@@ -330,14 +330,23 @@
 
   .runs { list-style: none; margin: 0; padding: 0; }
 
-  .run { border-bottom: 1px solid var(--line-soft); }
-  .run:last-child { border-bottom: 0; }
+  .runs { display: grid; gap: 8px; }
+
+  .run {
+    display: grid;
+    grid-template-columns: 1fr 34px;
+    align-items: start;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 0 6px 0 12px;
+  }
 
   .run summary {
     display: flex;
     align-items: center;
     gap: 12px;
-    min-height: 46px;
+    min-height: 54px;
     cursor: pointer;
     list-style: none;
     color: var(--ink);
@@ -348,22 +357,39 @@
   .run summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
 
   .run .when {
-    font-size: 14px;
-    color: var(--ink-2);
+    font-size: 15px;
+    font-weight: 520;
+    color: var(--ink);
     font-variant-numeric: tabular-nums;
     flex: 1;
   }
 
   .run .dur {
     font-size: 15px;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
     color: var(--ink);
   }
 
+  .run-delete {
+    width: 34px;
+    height: 54px;
+    border: 0;
+    background: none;
+    color: var(--ink-2);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+  }
+
+  .run-delete:hover { color: #a8452f; }
+  .run-delete:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
   .splits {
     list-style: none;
     margin: 0 0 14px;
-    padding: 0;
+    padding: 0 6px 0 0;
     display: grid;
     gap: 6px;
   }
@@ -751,6 +777,13 @@
     "Milk — prep & steam", "Pour & build", "Cleanup"
   ];
 
+  const GRIP_ICON = '<svg width="10" height="16" viewBox="0 0 10 16" aria-hidden="true"><g fill="currentColor">'
+    + '<circle cx="3" cy="3" r="1.4"/><circle cx="7" cy="3" r="1.4"/>'
+    + '<circle cx="3" cy="8" r="1.4"/><circle cx="7" cy="8" r="1.4"/>'
+    + '<circle cx="3" cy="13" r="1.4"/><circle cx="7" cy="13" r="1.4"/></g></svg>';
+  const CROSS_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">'
+    + '<path d="M2.5 2.5l7 7M9.5 2.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+
   const $ = (id) => document.getElementById(id);
   const ui = {
     steps: $("steps"), actions: $("actions"), next: $("next"), undo: $("undo"),
@@ -976,9 +1009,10 @@
     ui.clear.hidden = history.length === 0;
 
     ui.runs.textContent = "";
-    history.slice(0, 8).forEach((entry) => {
+    history.slice(0, 8).forEach((entry, position) => {
       const li = document.createElement("li");
       li.className = "run";
+      li.dataset.index = String(position);
 
       const details = document.createElement("details");
       const summary = document.createElement("summary");
@@ -1009,6 +1043,14 @@
 
       details.append(summary, splits);
       li.appendChild(details);
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "run-delete";
+      remove.innerHTML = CROSS_ICON;
+      remove.setAttribute("aria-label", "Delete run from " + stamp(entry.startedAt));
+      li.appendChild(remove);
+
       ui.runs.appendChild(li);
     });
   }
@@ -1341,13 +1383,6 @@
   });
 
   // ---- steps editor --------------------------------------------------------
-  const GRIP_ICON = '<svg width="10" height="16" viewBox="0 0 10 16" aria-hidden="true"><g fill="currentColor">'
-    + '<circle cx="3" cy="3" r="1.4"/><circle cx="7" cy="3" r="1.4"/>'
-    + '<circle cx="3" cy="8" r="1.4"/><circle cx="7" cy="8" r="1.4"/>'
-    + '<circle cx="3" cy="13" r="1.4"/><circle cx="7" cy="13" r="1.4"/></g></svg>';
-  const CROSS_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">'
-    + '<path d="M2.5 2.5l7 7M9.5 2.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
-
   function renderStepEditor() {
     ui.editor.textContent = "";
     sections.forEach((name, i) => {
@@ -1635,6 +1670,18 @@
     else applyRoute();
   });
   window.addEventListener("hashchange", applyRoute);
+
+  ui.runs.addEventListener("click", (event) => {
+    const button = event.target.closest(".run-delete");
+    if (!button) return;
+    const position = Number(button.closest(".run").dataset.index);
+    if (!history[position]) return;
+    const removed = history[position];
+    history.splice(position, 1);
+    write(HIST_KEY, history);
+    renderRuns();
+    announce("Deleted the run from " + stamp(removed.startedAt) + ".");
+  });
 
   ui.clear.addEventListener("click", () => {
     history = [];
