@@ -1,0 +1,1247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f7f3ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#131110" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Latte">
+<title>Latte</title>
+<style>
+  :root {
+    --paper: #f7f3ec;
+    --surface: #fffcf7;
+    --ink: #1b1512;
+    --ink-2: #6a5b52;
+    --line: #e2d8cb;
+    --line-soft: #ece4d9;
+    --current: #4b2e21;
+    --current-ink: #fff8f1;
+    --focus: #9a6b3f;
+    --radius: 14px;
+    --pad: 26px;
+    --step-h: 56px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #131110;
+      --surface: #1b1815;
+      --ink: #f4ede5;
+      --ink-2: #a4968b;
+      --line: #38302b;
+      --line-soft: #2b2420;
+      --current: #e9dbc9;
+      --current-ink: #211a16;
+      --focus: #c99a68;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border-radius: 99px;
+    border: 2px solid var(--paper);
+  }
+
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.4;
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+    min-height: 100dvh;
+  }
+
+  ::selection { background: var(--current); color: var(--current-ink); }
+
+  .sr {
+    position: absolute; width: 1px; height: 1px; margin: -1px;
+    padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
+  .app {
+    max-width: 440px;
+    margin: 0 auto;
+    padding: calc(var(--pad) + env(safe-area-inset-top)) var(--pad) 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+  }
+
+  /* header ---------------------------------------------------------------- */
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 14px;
+  }
+
+  .head-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .chip {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink-2);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 520;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 99px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .chip:hover { color: var(--ink); border-color: var(--ink-2); }
+  .chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .chip .count {
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 23px;
+    font-weight: 660;
+    letter-spacing: -0.018em;
+    color: var(--ink);
+  }
+
+  .total {
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+    letter-spacing: 0.01em;
+  }
+
+  /* the ticking digits are the liveness cue; no decorative indicator */
+  .total[data-live="true"],
+  .total[data-done="true"] { color: var(--ink); font-weight: 550; }
+
+  /* steps ----------------------------------------------------------------- */
+  /* the list and the action bar share one surface width, so the primary
+     button lines up with the rows instead of floating inside them */
+  .steps {
+    list-style: none;
+    margin: 0 -12px;
+    padding: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .step {
+    display: grid;
+    grid-template-columns: 22px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    min-height: var(--step-h);
+    padding: 0 14px;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--ink-2);
+    transition: background-color 180ms ease-out, color 180ms ease-out;
+  }
+
+  .step .n {
+    font-size: 12.5px;
+    font-weight: 550;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+    transition: color 180ms ease-out;
+  }
+
+  .step .nm {
+    font-size: 16px;
+    letter-spacing: -0.005em;
+  }
+
+  .step .t {
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+    transition: color 160ms ease-out;
+  }
+
+  /* done: the split is the content */
+  .step[data-state="done"] .nm { color: var(--ink); }
+  .step[data-state="done"] .t { color: var(--ink); }
+
+  /* current: filled, inverts, and the running clock is the loudest thing */
+  .step[data-state="current"] {
+    background: var(--current);
+    color: var(--current-ink);
+    border-radius: 10px;
+    border-bottom-color: transparent;
+  }
+
+  .step[data-state="current"] .n,
+  .step[data-state="current"] .nm,
+  .step[data-state="current"] .t { color: var(--current-ink); }
+
+  .step[data-state="current"] .nm { font-weight: 560; }
+
+  /* actions --------------------------------------------------------------- */
+  .actions {
+    position: sticky;
+    bottom: 0;
+    margin: 0 -12px;
+    margin-top: auto;
+    padding: 16px 0 calc(16px + env(safe-area-inset-bottom));
+    background: var(--paper);
+    display: grid;
+    grid-template-columns: 0.92fr 1.32fr;
+    gap: 10px;
+  }
+
+  .actions[data-mode="idle"] { grid-template-columns: 1fr; }
+  .actions[data-mode="idle"] #undo { display: none; }
+
+  .btn {
+    appearance: none;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    font: inherit;
+    font-size: 16.5px;
+    font-weight: 580;
+    letter-spacing: -0.005em;
+    height: 56px;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 90ms ease-out, background-color 140ms ease-out, border-color 140ms ease-out;
+  }
+
+  .btn:active { transform: translateY(1px); }
+
+  .btn:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .btn-primary {
+    background: var(--current);
+    color: var(--current-ink);
+    box-shadow: 0 1px 2px rgba(27, 21, 18, 0.16), 0 6px 16px -8px rgba(27, 21, 18, 0.4);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--line);
+  }
+
+  .btn-ghost:hover { border-color: var(--ink-2); }
+
+  .btn[disabled] {
+    opacity: 0.45;
+    cursor: default;
+    transform: none;
+  }
+
+  /* history --------------------------------------------------------------- */
+  /* run list: a separate page, reached from the header chip --------------- */
+  .sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: var(--paper);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: calc(var(--pad) + env(safe-area-inset-top)) var(--pad) calc(28px + env(safe-area-inset-bottom));
+  }
+
+  .sheet[hidden] { display: none; }
+
+  .sheet-inner { max-width: 440px; margin: 0 auto; }
+
+  .sheet-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 16px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .sheet-head h2 {
+    font-size: 17px;
+    font-weight: 620;
+    letter-spacing: -0.01em;
+    text-transform: none;
+    color: var(--ink);
+  }
+
+  .sheet-sub {
+    margin: 10px 0 0;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+
+  .sheet-empty {
+    padding: 22px 0;
+    font-size: 14px;
+    color: var(--ink-2);
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  .link {
+    appearance: none;
+    background: none;
+    border: 0;
+    padding: 4px 2px;
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink-2);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+    text-decoration-color: var(--line);
+    cursor: pointer;
+  }
+
+  .link:hover { color: var(--ink); text-decoration-color: var(--ink-2); }
+  .link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+
+  .runs { list-style: none; margin: 0; padding: 0; }
+
+  .run { border-bottom: 1px solid var(--line-soft); }
+  .run:last-child { border-bottom: 0; }
+
+  .run summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 46px;
+    cursor: pointer;
+    list-style: none;
+    color: var(--ink);
+  }
+
+  .run summary::-webkit-details-marker { display: none; }
+
+  .run summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+
+  .run .when {
+    font-size: 14px;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+    flex: 1;
+  }
+
+  .run .dur {
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+
+  .splits {
+    list-style: none;
+    margin: 0 0 14px;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+
+  .splits li {
+    display: grid;
+    grid-template-columns: 62px 1fr auto;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--ink-2);
+  }
+
+  .splits .v { font-variant-numeric: tabular-nums; color: var(--ink); }
+  .splits .row-name {
+    color: var(--ink-2);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .splits .at { font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--ink-2); }
+
+
+  /* steam timer (milk section) -------------------------------------------- */
+  .steam {
+    margin: 20px -12px 0;
+    padding: 16px 14px 12px;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  .steam[hidden] { display: none; }
+
+  .steam-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .steam-time {
+    font-size: 38px;
+    font-weight: 620;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    transition: color 180ms ease-out;
+  }
+
+  .steam-note {
+    margin-top: 7px;
+    font-size: 12.5px;
+    color: var(--ink-2);
+  }
+
+  .steam[data-phase="delay"] .steam-time { color: var(--ink-2); }
+  .steam[data-hit="true"] .steam-time { color: var(--current); }
+  .steam[data-hit="true"] .steam-note { color: var(--ink); }
+
+  .steam-btn {
+    min-width: 104px;
+    height: 48px;
+    font-size: 15.5px;
+    border-radius: 12px;
+    padding: 0 18px;
+    box-shadow: none;
+  }
+
+  .steam-btn[data-quiet="true"] {
+    background: transparent;
+    color: var(--ink);
+    border-color: var(--line);
+  }
+
+  /* settings live on the runs page --------------------------------------- */
+  .settings {
+    margin-top: 26px;
+    padding-top: 22px;
+    border-top: 1px solid var(--line);
+  }
+
+  .settings h3 {
+    margin: 0 0 14px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+  }
+
+  .fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 14px;
+    align-items: end;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--ink-2);
+  }
+
+  .field.wide { grid-column: 1 / -1; }
+
+  .field input[type="number"],
+  .field select {
+    height: 40px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--paper);
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .field select {
+    appearance: none;
+    padding-right: 30px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236a5b52' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 11px center;
+  }
+
+  .field input[type="number"]:focus-visible,
+  .field select:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    color: var(--ink-2);
+    padding-bottom: 10px;
+  }
+
+  .toggle input { width: 18px; height: 18px; accent-color: var(--current); }
+
+  .danger-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+  }
+
+  .link.danger { color: #a8452f; }
+  .link.danger:hover { color: #7e3122; text-decoration-color: currentColor; }
+
+  @media (prefers-color-scheme: dark) {
+    .link.danger { color: #e08a72; }
+    .link.danger:hover { color: #f0a58f; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+
+  @media (min-width: 520px) {
+    .app { padding-top: 34px; }
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="head">
+    <h1>Latte</h1>
+    <div class="head-right">
+      <div class="total" id="total"></div>
+      <button class="chip" id="open-history" type="button">Runs <span class="count" id="run-count">0</span></button>
+    </div>
+  </header>
+
+  <ol class="steps" id="steps" aria-label="Latte sections"></ol>
+
+  <section class="steam" id="steam" aria-label="Steam timer" hidden>
+    <div class="steam-row">
+      <div>
+        <div class="steam-time" id="steam-time">0:00</div>
+        <div class="steam-note" id="steam-note">target 55s</div>
+      </div>
+      <button class="btn btn-primary steam-btn" id="steam-run" type="button">Run</button>
+    </div>
+  </section>
+
+  <div class="actions" id="actions" data-mode="idle">
+    <button class="btn btn-ghost" id="undo" type="button">Undo</button>
+    <button class="btn btn-primary" id="next" type="button">Start</button>
+  </div>
+
+</main>
+
+<section class="sheet" id="history-page" aria-label="Runs and settings" hidden>
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <button class="chip" id="close-history" type="button">Back</button>
+      <h2>Runs</h2>
+    </div>
+    <p class="sheet-sub">Tap a run to see its splits.</p>
+    <p class="sheet-empty" id="history-empty" hidden>No finished runs yet — the steps of a run show up here once it ends.</p>
+    <ul class="runs" id="runs"></ul>
+
+    <section class="settings" aria-label="Steam timer settings">
+      <h3>Steam timer</h3>
+      <div class="fields">
+        <label class="field wide">Shown on
+          <select id="cfg-section"></select>
+        </label>
+        <label class="field">Delay (s)
+          <input id="cfg-delay" type="number" min="0" max="120" step="1" inputmode="numeric">
+        </label>
+        <label class="field">Target (s)
+          <input id="cfg-target" type="number" min="5" max="900" step="1" inputmode="numeric">
+        </label>
+        <label class="toggle"><input id="cfg-sound" type="checkbox"> Sound</label>
+        <label class="toggle"><input id="cfg-vibrate" type="checkbox"> Vibration</label>
+      </div>
+    </section>
+
+    <div class="danger-row">
+      <button class="link" id="clear" type="button">Clear history</button>
+      <button class="link danger" id="reset-all" type="button">Reset everything</button>
+    </div>
+  </div>
+</section>
+
+<p class="sr" aria-live="polite" id="say"></p>
+
+<script>
+(() => {
+  "use strict";
+
+  const SECTIONS = [
+    "Dose — weigh & spray",
+    "Grind",
+    "Load & tamp",
+    "Cleanup — shot pulling",
+    "Milk — prep & steam",
+    "Pour & build",
+    "Final cleanup"
+  ];
+
+  const RUN_KEY = "latte.run.v1";
+  const HIST_KEY = "latte.history.v1";
+  const CFG_KEY = "latte.config.v1";
+  const STEAM_KEY = "latte.steam.v1";
+
+  const STALE_MS = 6 * 60 * 60 * 1000;   // a section left open this long is not a split
+  const KEEP = 12;                        // finished runs remembered
+  const TICK_MS = 200;
+  const SECTIONS_KEY = SECTIONS.join("→");   // a run belongs to the list it started on
+
+  const LEGACY_SECTIONS = [
+    "Dose — weigh & spray", "Grind", "Load & tamp",
+    "Milk — prep & steam", "Pour & build", "Cleanup"
+  ];
+
+  const CFG_DEFAULTS = {
+    delaySec: 5,
+    targetSec: 55,
+    sound: true,
+    vibrate: true,
+    steamSection: "Milk — prep & steam"
+  };
+  const CFG_LIMITS = { delaySec: [0, 120], targetSec: [5, 900] };
+
+  const $ = (id) => document.getElementById(id);
+  const ui = {
+    steps: $("steps"), actions: $("actions"), next: $("next"), undo: $("undo"),
+    total: $("total"), say: $("say"),
+    steam: $("steam"), steamTime: $("steam-time"), steamNote: $("steam-note"), steamBtn: $("steam-run"),
+    runsPage: $("history-page"), runs: $("runs"), runsEmpty: $("history-empty"), runCount: $("run-count"),
+    openRuns: $("open-history"), closeRuns: $("close-history"),
+    clear: $("clear"), resetAll: $("reset-all"),
+    cfgSection: $("cfg-section"), cfgDelay: $("cfg-delay"), cfgTarget: $("cfg-target"),
+    cfgSound: $("cfg-sound"), cfgVibrate: $("cfg-vibrate")
+  };
+
+  // ---- storage -------------------------------------------------------------
+  function read(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch (err) {
+      return fallback;
+    }
+  }
+
+  function write(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (err) {
+      /* storage blocked or full — the session still times, it just will not survive a reload */
+    }
+  }
+
+  // ---- model ---------------------------------------------------------------
+  // run   : { startedAt, index, sectionStartedAt, marks: [{ name, secs }], done, finishedAt }
+  //         while running marks.length === index: marks[i] is a finished section,
+  //         run.index is the section being timed right now.
+  // steam : { phase: "idle" | "delay" | "run", delayEndsAt, startedAt, hit, lastElapsed }
+  let run = read(RUN_KEY, null);
+  let steam = read(STEAM_KEY, null);
+  let history = read(HIST_KEY, []);
+  let config = Object.assign({}, CFG_DEFAULTS, read(CFG_KEY, {}));
+
+  // earlier builds stored the steam section as an index; a reorder would point
+  // it at the wrong step, so a number is resolved to its name once.
+  if (typeof config.steamSection === "number") {
+    config.steamSection = LEGACY_SECTIONS[config.steamSection] || CFG_DEFAULTS.steamSection;
+    if (!SECTIONS.includes(config.steamSection)) config.steamSection = CFG_DEFAULTS.steamSection;
+    write(CFG_KEY, config);
+  }
+
+  if (run && !run.done && Date.now() - (run.sectionStartedAt || 0) > STALE_MS) {
+    run = null;
+    write(RUN_KEY, null);
+  }
+
+  // a run in flight against a different section list is not a measurement of
+  // these steps: drop it instead of resuming into the wrong ones
+  if (run && !run.done && run.sectionsKey !== SECTIONS_KEY) {
+    run = null;
+    write(RUN_KEY, null);
+  }
+
+  const round1 = (n) => Math.round(n * 10) / 10;
+  const isRunning = () => !!run && !run.done;
+  const isDone = () => !!run && !!run.done;
+
+  function fmt(seconds) {
+    const s = Math.max(0, Math.round(seconds));
+    if (s >= 3600) {
+      const h = Math.floor(s / 3600);
+      return h + ":" + String(Math.floor((s % 3600) / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+    }
+    return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  }
+
+  function sectionElapsed() {
+    return isRunning() ? Math.max(0, (Date.now() - run.sectionStartedAt) / 1000) : 0;
+  }
+
+  function runTotal() {
+    if (!run) return 0;
+    return run.marks.reduce((sum, m) => sum + m.secs, 0) + sectionElapsed();
+  }
+
+  // ---- sections list (built once) -----------------------------------------
+  const rows = SECTIONS.map((name, i) => {
+    const li = document.createElement("li");
+    li.className = "step";
+    li.dataset.state = "todo";
+    li.innerHTML = '<span class="n"></span><span class="nm"></span><span class="t"></span>';
+    li.querySelector(".n").textContent = String(i + 1);
+    li.querySelector(".nm").textContent = name;
+    ui.steps.appendChild(li);
+    return li;
+  });
+
+  // ---- render --------------------------------------------------------------
+  function render() {
+    const running = isRunning();
+    const finished = isDone();
+    const marks = run ? run.marks : [];
+
+    rows.forEach((li, i) => {
+      let state = "todo";
+      if (running) state = i < run.index ? "done" : (i === run.index ? "current" : "todo");
+      else if (finished) state = "done";
+
+      li.dataset.state = state;
+      const cell = li.querySelector(".t");
+      if (state === "done") cell.textContent = marks[i] ? fmt(marks[i].secs) : "";
+      else if (state === "current") cell.textContent = fmt(sectionElapsed());
+      else cell.textContent = "";
+
+      if (state === "current") li.setAttribute("aria-current", "step");
+      else li.removeAttribute("aria-current");
+    });
+
+    ui.actions.dataset.mode = running ? "running" : "idle";
+    ui.next.textContent = running ? "Next" : (finished ? "Start new run" : "Start");
+    ui.undo.setAttribute("aria-label", running && run.index === 0
+      ? "Undo — cancels this run"
+      : "Undo — merges this section's time into the previous one");
+
+    if (running) {
+      ui.total.dataset.live = "true";
+      ui.total.dataset.done = "false";
+      ui.total.textContent = fmt(runTotal());
+    } else if (finished) {
+      ui.total.dataset.live = "false";
+      ui.total.dataset.done = "true";
+      ui.total.textContent = fmt(marks.reduce((s, m) => s + m.secs, 0)) + " done";
+    } else {
+      ui.total.dataset.live = "false";
+      ui.total.dataset.done = "false";
+      ui.total.textContent = "";
+    }
+
+    renderSteam();
+    renderRuns();
+  }
+
+  function renderRuns() {
+    ui.runCount.textContent = String(history.length);
+    ui.runsEmpty.hidden = history.length > 0;
+    ui.clear.hidden = history.length === 0;
+
+    ui.runs.textContent = "";
+    history.slice(0, 8).forEach((entry) => {
+      const li = document.createElement("li");
+      li.className = "run";
+
+      const details = document.createElement("details");
+      const summary = document.createElement("summary");
+      const when = document.createElement("span");
+      when.className = "when";
+      when.textContent = stamp(entry.startedAt);
+      const dur = document.createElement("span");
+      dur.className = "dur";
+      dur.textContent = fmt(entry.total);
+      summary.append(when, dur);
+
+      const splits = document.createElement("ul");
+      splits.className = "splits";
+      entry.sections.forEach((s) => {
+        const row = document.createElement("li");
+        const at = document.createElement("span");
+        at.className = "at";
+        at.textContent = s.start ? clockSec(s.start) : "";
+        const name = document.createElement("span");
+        name.className = "row-name";
+        name.textContent = s.name;
+        const value = document.createElement("span");
+        value.className = "v";
+        value.textContent = fmt(s.secs);
+        row.append(at, name, value);
+        splits.appendChild(row);
+      });
+
+      details.append(summary, splits);
+      li.appendChild(details);
+      ui.runs.appendChild(li);
+    });
+  }
+
+  const clock = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const clockSec = (ms) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+  function stamp(ms) {
+    const d = new Date(ms);
+    return d.toLocaleDateString([], { month: "short", day: "numeric" }) + " · " + clock(ms);
+  }
+
+  // ---- run transitions -----------------------------------------------------
+  function commitRun() {
+    write(RUN_KEY, run);
+    render();
+  }
+
+  function startRun() {
+    const now = Date.now();
+    run = { startedAt: now, index: 0, sectionStartedAt: now, marks: [], done: false, sectionsKey: SECTIONS_KEY };
+    steam = null;
+    write(STEAM_KEY, null);
+    commitRun();
+    startTicker();
+    holdScreen();
+    announce("Started. " + SECTIONS[0] + ".");
+  }
+
+  function nextSection() {
+    if (!isRunning()) {
+      startRun();
+      return;
+    }
+
+    const now = Date.now();
+    run.marks.push({ name: SECTIONS[run.index], start: run.sectionStartedAt, secs: round1(sectionElapsed()) });
+    run.index += 1;
+
+    if (run.index === SECTIONS.length) {
+      finishRun(now);
+      return;
+    }
+
+    run.sectionStartedAt = now;
+    steam = null;
+    write(STEAM_KEY, null);
+    commitRun();
+    announce(SECTIONS[run.index] + ".");
+  }
+
+  function finishRun(now) {
+    run.done = true;
+    run.finishedAt = now;
+    const total = round1(run.marks.reduce((s, m) => s + m.secs, 0));
+    history.unshift({
+      startedAt: run.startedAt,
+      finishedAt: now,
+      total,
+      sections: run.marks.slice()
+    });
+    history = history.slice(0, KEEP);
+    write(HIST_KEY, history);
+
+    steam = null;
+    write(STEAM_KEY, null);
+    stopTicker();
+    dropScreen();
+    commitRun();
+    announce("Run complete. " + fmt(total) + ".");
+  }
+
+  // A correction, not a reset: the time spent in the current section joins the
+  // previous one, whose clock then keeps running from the merged total.
+  function undoSection() {
+    if (!isRunning()) return;
+
+    if (run.index === 0) {
+      resetRun();
+      return;
+    }
+
+    const now = Date.now();
+    const spent = sectionElapsed();
+    const previous = run.marks.pop();
+    const merged = round1(previous.secs + spent);
+
+    run.index -= 1;                              // marks.length === run.index again
+    run.sectionStartedAt = now - merged * 1000;  // clock continues from the merged total
+
+    steam = null;
+    write(STEAM_KEY, null);
+    commitRun();
+    announce("Back to " + SECTIONS[run.index] + ", " + fmt(merged) + " so far.");
+  }
+
+  function resetRun() {
+    run = null;
+    steam = null;
+    write(RUN_KEY, null);
+    write(STEAM_KEY, null);
+    stopTicker();
+    dropScreen();
+    render();
+    announce("Run cancelled.");
+  }
+
+  function resetEverything() {
+    run = null;
+    steam = null;
+    history = [];
+    write(RUN_KEY, null);
+    write(STEAM_KEY, null);
+    write(HIST_KEY, []);
+    stopTicker();
+    dropScreen();
+    render();
+    announce("Everything reset.");
+  }
+
+  // ---- steam timer ---------------------------------------------------------
+  // phase "idle" -> press -> "delay" (config.delaySec) -> "run" -> target cue.
+  const steamPhase = () => (steam && steam.phase ? steam.phase : "idle");
+  const steamVisible = () => isRunning() && SECTIONS[run.index] === config.steamSection;
+
+  function steamElapsed() {
+    if (!steam) return 0;
+    if (steam.phase === "run") return Math.max(0, (Date.now() - steam.startedAt) / 1000);
+    return steam.phase === "idle" ? (steam.lastElapsed || 0) : 0;
+  }
+
+  function commitSteam() {
+    write(STEAM_KEY, steam);
+    renderSteam();
+  }
+
+  function steamStart() {
+    const now = Date.now();
+    const delayMs = Math.max(0, Number(config.delaySec) || 0) * 1000;
+    audioPrime();
+    steam = {
+      phase: delayMs > 0 ? "delay" : "run",
+      delayEndsAt: now + delayMs,
+      startedAt: now + delayMs,
+      hit: false,
+      lastElapsed: 0
+    };
+    commitSteam();
+  }
+
+  function steamCancel() {
+    steam = { phase: "idle", lastElapsed: 0, hit: false };
+    commitSteam();
+  }
+
+  function steamStop() {
+    steam = { phase: "idle", lastElapsed: steamElapsed(), hit: !!(steam && steam.hit) };
+    commitSteam();
+  }
+
+  function steamPress() {
+    if (!steamVisible()) return;
+    const phase = steamPhase();
+    if (phase === "idle") steamStart();
+    else if (phase === "delay") steamCancel();
+    else steamStop();
+  }
+
+  function steamTick() {
+    if (!steamVisible() || !steam) return;
+    const now = Date.now();
+
+    if (steam.phase === "delay" && now >= steam.delayEndsAt) {
+      steam.phase = "run";
+      write(STEAM_KEY, steam);
+      beep(1, 680, 0.13);
+      buzz(45);
+    }
+
+    if (steam.phase === "run" && !steam.hit && steamElapsed() >= Number(config.targetSec)) {
+      steam.hit = true;
+      write(STEAM_KEY, steam);
+      beep(3, 900, 0.15);
+      buzz([140, 70, 140]);
+      announce("Steam target reached.");
+    }
+
+    renderSteam();
+  }
+
+  function renderSteam() {
+    const visible = steamVisible();
+    ui.steam.hidden = !visible;
+    if (!visible) return;
+
+    const phase = steamPhase();
+    const target = Number(config.targetSec);
+    ui.steam.dataset.phase = phase;
+    ui.steam.dataset.hit = steam && steam.hit ? "true" : "false";
+    ui.steamBtn.dataset.quiet = phase === "idle" ? "false" : "true";
+
+    if (phase === "delay") {
+      const left = Math.max(0, Math.ceil((steam.delayEndsAt - Date.now()) / 1000));
+      ui.steamTime.textContent = String(left);
+      ui.steamNote.textContent = "starting in " + left + "s";
+      ui.steamBtn.textContent = "Cancel";
+    } else if (phase === "run") {
+      ui.steamTime.textContent = fmt(steamElapsed());
+      ui.steamNote.textContent = steam.hit
+        ? target + "s reached · still counting"
+        : "steaming · target " + target + "s";
+      ui.steamBtn.textContent = "Stop";
+    } else {
+      const last = steam && steam.lastElapsed ? steam.lastElapsed : 0;
+      ui.steamTime.textContent = fmt(last);
+      ui.steamNote.textContent = last
+        ? "last " + fmt(last) + " · target " + target + "s"
+        : "target " + target + "s · " + config.delaySec + "s delay";
+      ui.steamBtn.textContent = "Run";
+    }
+  }
+
+  // ---- feedback ------------------------------------------------------------
+  let audio = null;
+
+  function audioPrime() {
+    if (!config.sound) return;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    if (!audio) audio = new Ctx();
+    if (audio.state === "suspended") audio.resume();
+  }
+
+  function beep(count, freq, dur) {
+    if (!config.sound || !audio) return;
+    const t0 = audio.currentTime;
+    for (let i = 0; i < count; i++) {
+      const t = t0 + i * 0.24;
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.2, t + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(gain).connect(audio.destination);
+      osc.start(t);
+      osc.stop(t + dur + 0.03);
+    }
+  }
+
+  function buzz(pattern) {
+    if (config.vibrate && navigator.vibrate) navigator.vibrate(pattern);
+  }
+
+  // ---- ticking, wake lock, screen reader -----------------------------------
+  let ticker = null;
+  let wakeLock = null;
+
+  function startTicker() {
+    stopTicker();
+    ticker = setInterval(() => {
+      if (!isRunning()) return;
+      const row = rows[run.index];
+      if (row) row.querySelector(".t").textContent = fmt(sectionElapsed());
+      ui.total.textContent = fmt(runTotal());
+      steamTick();
+    }, TICK_MS);
+  }
+
+  function stopTicker() {
+    if (ticker) clearInterval(ticker);
+    ticker = null;
+  }
+
+  async function holdScreen() {
+    if (!("wakeLock" in navigator) || wakeLock) return;
+    const lock = await navigator.wakeLock.request("screen");
+    wakeLock = lock;
+    lock.addEventListener("release", () => { wakeLock = null; });
+  }
+
+  function dropScreen() {
+    if (!wakeLock) return;
+    wakeLock.release();
+    wakeLock = null;
+  }
+
+  function announce(text) {
+    ui.say.textContent = text;
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && isRunning() && !wakeLock) {
+      holdScreen().catch(() => {});
+    }
+  });
+
+  // ---- settings ------------------------------------------------------------
+  function clamp(value, range, fallback) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(range[1], Math.max(range[0], Math.round(n)));
+  }
+
+  function fillSectionOptions() {
+    ui.cfgSection.textContent = "";
+    SECTIONS.forEach((name) => {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      ui.cfgSection.appendChild(option);
+    });
+  }
+
+  function applyConfigToInputs() {
+    ui.cfgSection.value = config.steamSection;
+    ui.cfgDelay.value = String(config.delaySec);
+    ui.cfgTarget.value = String(config.targetSec);
+    ui.cfgSound.checked = !!config.sound;
+    ui.cfgVibrate.checked = !!config.vibrate;
+  }
+
+  function saveConfig() {
+    write(CFG_KEY, config);
+    renderSteam();
+  }
+
+  ui.cfgSection.addEventListener("change", () => {
+    config.steamSection = SECTIONS.includes(ui.cfgSection.value) ? ui.cfgSection.value : CFG_DEFAULTS.steamSection;
+    ui.cfgSection.value = config.steamSection;
+    steam = null;
+    write(STEAM_KEY, null);
+    saveConfig();
+    render();
+  });
+
+  ui.cfgDelay.addEventListener("change", () => {
+    config.delaySec = clamp(ui.cfgDelay.value, CFG_LIMITS.delaySec, CFG_DEFAULTS.delaySec);
+    ui.cfgDelay.value = String(config.delaySec);
+    saveConfig();
+  });
+
+  ui.cfgTarget.addEventListener("change", () => {
+    config.targetSec = clamp(ui.cfgTarget.value, CFG_LIMITS.targetSec, CFG_DEFAULTS.targetSec);
+    ui.cfgTarget.value = String(config.targetSec);
+    saveConfig();
+  });
+
+  ui.cfgSound.addEventListener("change", () => {
+    config.sound = ui.cfgSound.checked;
+    if (config.sound) audioPrime();
+    saveConfig();
+  });
+
+  ui.cfgVibrate.addEventListener("change", () => {
+    config.vibrate = ui.cfgVibrate.checked;
+    saveConfig();
+  });
+
+  // ---- wiring --------------------------------------------------------------
+  function applyRoute() {
+    const open = location.hash === "#runs";
+    ui.runsPage.hidden = !open;
+    if (open) renderRuns();
+  }
+
+  ui.next.addEventListener("click", nextSection);
+  ui.undo.addEventListener("click", undoSection);
+  ui.steamBtn.addEventListener("click", steamPress);
+  ui.openRuns.addEventListener("click", () => { location.hash = "runs"; });
+  ui.closeRuns.addEventListener("click", () => {
+    if (location.hash === "#runs") location.hash = "";
+    else applyRoute();
+  });
+  window.addEventListener("hashchange", applyRoute);
+
+  ui.clear.addEventListener("click", () => {
+    history = [];
+    write(HIST_KEY, []);
+    renderRuns();
+    announce("History cleared.");
+  });
+
+  // two taps to erase everything: no dialog, no surprise
+  let resetArmed = false;
+  let resetTimer = null;
+
+  ui.resetAll.addEventListener("click", () => {
+    if (!resetArmed) {
+      resetArmed = true;
+      ui.resetAll.textContent = "Tap again to erase";
+      resetTimer = setTimeout(() => {
+        resetArmed = false;
+        ui.resetAll.textContent = "Reset everything";
+      }, 4000);
+      return;
+    }
+    clearTimeout(resetTimer);
+    resetArmed = false;
+    ui.resetAll.textContent = "Reset everything";
+    resetEverything();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement) return;
+    const key = event.key.toLowerCase();
+    if (key === "n") { event.preventDefault(); nextSection(); }
+    else if (key === "u") { event.preventDefault(); undoSection(); }
+  });
+
+  // ---- boot ----------------------------------------------------------------
+  fillSectionOptions();
+  applyConfigToInputs();
+  render();
+  applyRoute();
+  if (isRunning()) {
+    startTicker();
+    holdScreen().catch(() => {});
+    announce("Resumed at " + SECTIONS[run.index] + ".");
+  }
+})();
+</script>
+</body>
+</html>

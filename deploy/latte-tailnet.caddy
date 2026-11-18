@@ -1,0 +1,14 @@
+# Latte timer over the tailnet — plain HTTP inside WireGuard, no public port needed.
+# Owner: latte-timer. Only tailnet (100.64.0.0/10) and loopback clients get the
+# file; anything else is refused, so this stays private even if the port is ever
+# opened at the cloud firewall.
+http://:8080 {
+	@tailnet remote_ip 100.64.0.0/10 127.0.0.1/32 ::1/128
+	handle @tailnet {
+		root * /var/www/latte
+		rewrite * /index.html
+		header Cache-Control "no-store"
+		file_server
+	}
+	respond "Not available" 403
+}
