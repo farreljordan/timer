@@ -1,9 +1,0 @@
-# Latte timer — single-file client-side app (no backend, state in localStorage).
-# Owner: latte-timer. Serves /latte from the static bundle in /var/www/latte.
-@latte path /latte /latte/
-handle @latte {
-	root * /var/www/latte
-	rewrite * /index.html
-	header Cache-Control "no-store"
-	file_server
-}

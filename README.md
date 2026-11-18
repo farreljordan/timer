@@ -53,12 +53,5 @@ the steps never resumes an old run into the wrong ones.
 
 ## Serving it
 
-Nothing is deployed from here — hosting is up to whoever runs it. `deploy/` has
-the two Caddy fragments the app was developed against:
-
-- `deploy/latte.caddy` — route fragment, served as `https://<host>/latte`
-- `deploy/latte-tailnet.caddy` — site fragment on `:8080`, restricted to
-  `100.64.0.0/10` and loopback for tailnet-only access
-
-Both rewrite to a single `index.html` with `Cache-Control: no-store`, so a
-deploy is one file copy and a page reload — no build, no restart.
+One static file. Put `index.html` anywhere that serves files and open it — no
+build step, no dependencies, no server-side anything.
