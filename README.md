@@ -53,11 +53,12 @@ the steps never resumes an old run into the wrong ones.
 
 ## Serving it
 
-Static file, served by the Caddy already on the host.
+Nothing is deployed from here — hosting is up to whoever runs it. `deploy/` has
+the two Caddy fragments the app was developed against:
 
-- Public: `https://<host>/latte` → `deploy/latte.caddy` (route fragment)
-- Tailnet only: `http://<tailscale-ip>:8080/latte` → `deploy/latte-tailnet.caddy`
-  (site fragment, restricted to `100.64.0.0/10` and loopback)
+- `deploy/latte.caddy` — route fragment, served as `https://<host>/latte`
+- `deploy/latte-tailnet.caddy` — site fragment on `:8080`, restricted to
+  `100.64.0.0/10` and loopback for tailnet-only access
 
-Both point at `/var/www/latte/index.html` with `Cache-Control: no-store`.
-Deploying a change is copying `index.html` there — reload the page, no restart.
+Both rewrite to a single `index.html` with `Cache-Control: no-store`, so a
+deploy is one file copy and a page reload — no build, no restart.
