@@ -39,8 +39,8 @@ matter more than any visual idea.
 
 ## Assumptions (labelled, since no interview was run)
 
-- Sections and their order are fixed in code; changing them is an edit, not a
-  setting.
+- Steps are editable in the app (rename, drag to reorder, add, remove) and are
+  stored in the browser, not in the code.
 - History is per-browser (localStorage), last runs kept, newest first. No sync
   across devices by design.
 - One run at a time; starting a new run abandons nothing silently — a finished

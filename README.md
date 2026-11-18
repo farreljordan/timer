@@ -17,6 +17,11 @@ No backend, no build step, no dependencies. `index.html` is the whole app.
 
 ## Behaviour
 
+The steps themselves are editable on the Runs page: rename a step, drag its
+handle to reorder, remove it, or add one. The list lives in `localStorage`, so it
+survives reloads; editing it ends a run that is in progress (a half-finished run
+measured different steps).
+
 - `Next` records the current step's split and starts the next one. After the
   last step the run is written to history and the button becomes `Start new run`.
 - `Undo` is a correction, not a reset: the time already spent in the current

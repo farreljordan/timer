@@ -447,6 +447,94 @@
     border-top: 1px solid var(--line);
   }
 
+  /* steps editor ---------------------------------------------------------- */
+  .editor {
+    list-style: none;
+    margin: 0 0 12px;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+  }
+
+  .edit-row {
+    display: grid;
+    grid-template-columns: 34px 1fr 36px;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--paper);
+    transition: transform 120ms ease-out, border-color 120ms ease-out, background-color 120ms ease-out;
+  }
+
+  .edit-row.dragging {
+    border-color: var(--focus);
+    background: var(--surface);
+    box-shadow: 0 8px 18px -10px rgba(27, 21, 18, 0.55);
+    position: relative;
+    z-index: 3;
+    transition: none;
+  }
+
+  .grip {
+    width: 34px;
+    height: 44px;
+    border: 0;
+    background: none;
+    color: var(--ink-2);
+    cursor: grab;
+    touch-action: none;
+    border-radius: 10px 0 0 10px;
+    display: grid;
+    place-items: center;
+  }
+
+  .grip:active { cursor: grabbing; }
+
+  .step-input {
+    border: 0;
+    border-bottom: 1px solid var(--line-soft);
+    border-radius: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    font-size: 15px;
+    height: 44px;
+    min-width: 0;
+    padding: 0;
+  }
+
+  .step-input:hover { border-bottom-color: var(--line); }
+
+  .step-input:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+    border-radius: 6px;
+  }
+
+  .step-remove {
+    width: 36px;
+    height: 44px;
+    border: 0;
+    background: none;
+    color: var(--ink-2);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    border-radius: 0 10px 10px 0;
+  }
+
+  .step-remove:hover { color: #a8452f; }
+  .grip:focus-visible, .step-remove:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+  .chip:disabled { opacity: 0.45; cursor: default; }
+
+  .hint {
+    margin: 8px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-2);
+  }
+
   .settings h3 {
     margin: 0 0 14px;
     font-size: 13px;
@@ -577,6 +665,13 @@
     <p class="sheet-empty" id="history-empty" hidden>No finished runs yet — the steps of a run show up here once it ends.</p>
     <ul class="runs" id="runs"></ul>
 
+    <section class="settings" aria-label="Steps">
+      <h3>Steps</h3>
+      <ul class="editor" id="editor"></ul>
+      <button class="chip" id="add-step" type="button">Add step</button>
+      <p class="hint">Drag the handle to reorder. Editing the steps ends a run in progress.</p>
+    </section>
+
     <section class="settings" aria-label="Steam timer settings">
       <h3>Steam timer</h3>
       <div class="fields">
@@ -607,7 +702,7 @@
 (() => {
   "use strict";
 
-  const SECTIONS = [
+  const DEFAULT_SECTIONS = [
     "Dose — weigh & spray",
     "Grind",
     "Load & tamp",
@@ -616,16 +711,31 @@
     "Pour & build",
     "Final cleanup"
   ];
+  const MAX_SECTIONS = 20;
+  const NAME_MAX = 40;
 
   const RUN_KEY = "latte.run.v1";
   const HIST_KEY = "latte.history.v1";
   const CFG_KEY = "latte.config.v1";
+  const SECTIONS_STORE = "latte.sections.v1";
   const STEAM_KEY = "latte.steam.v1";
 
   const STALE_MS = 6 * 60 * 60 * 1000;   // a section left open this long is not a split
   const KEEP = 12;                        // finished runs remembered
   const TICK_MS = 200;
-  const SECTIONS_KEY = SECTIONS.join("→");   // a run belongs to the list it started on
+
+  // the steps are user data: the list is a setting, not a constant
+  let sections = loadSections();
+
+  function loadSections() {
+    const stored = read(SECTIONS_STORE, null);
+    if (!Array.isArray(stored)) return DEFAULT_SECTIONS.slice();
+    const clean = stored.map((name) => String(name).trim()).filter(Boolean).slice(0, MAX_SECTIONS);
+    return clean.length ? clean : DEFAULT_SECTIONS.slice();
+  }
+
+  // a run belongs to the list it started on
+  const sectionsKey = () => sections.join("→");
 
   const LEGACY_SECTIONS = [
     "Dose — weigh & spray", "Grind", "Load & tamp",
@@ -649,6 +759,7 @@
     runsPage: $("history-page"), runs: $("runs"), runsEmpty: $("history-empty"), runCount: $("run-count"),
     openRuns: $("open-history"), closeRuns: $("close-history"),
     clear: $("clear"), resetAll: $("reset-all"),
+    editor: $("editor"), addStep: $("add-step"),
     cfgSection: $("cfg-section"), cfgDelay: $("cfg-delay"), cfgTarget: $("cfg-target"),
     cfgSound: $("cfg-sound"), cfgVibrate: $("cfg-vibrate")
   };
@@ -685,7 +796,14 @@
   // it at the wrong step, so a number is resolved to its name once.
   if (typeof config.steamSection === "number") {
     config.steamSection = LEGACY_SECTIONS[config.steamSection] || CFG_DEFAULTS.steamSection;
-    if (!SECTIONS.includes(config.steamSection)) config.steamSection = CFG_DEFAULTS.steamSection;
+    if (!sections.includes(config.steamSection)) config.steamSection = CFG_DEFAULTS.steamSection;
+    write(CFG_KEY, config);
+  }
+
+  // the steam timer names its step; a list without that step would leave the
+  // panel permanently hidden and the select blank, so it moves to the first step
+  if (!sections.includes(config.steamSection)) {
+    config.steamSection = sections[0];
     write(CFG_KEY, config);
   }
 
@@ -696,7 +814,7 @@
 
   // a run in flight against a different section list is not a measurement of
   // these steps: drop it instead of resuming into the wrong ones
-  if (run && !run.done && run.sectionsKey !== SECTIONS_KEY) {
+  if (run && !run.done && run.sectionsKey !== sectionsKey()) {
     run = null;
     write(RUN_KEY, null);
   }
@@ -723,17 +841,24 @@
     return run.marks.reduce((sum, m) => sum + m.secs, 0) + sectionElapsed();
   }
 
-  // ---- sections list (built once) -----------------------------------------
-  const rows = SECTIONS.map((name, i) => {
-    const li = document.createElement("li");
-    li.className = "step";
-    li.dataset.state = "todo";
-    li.innerHTML = '<span class="n"></span><span class="nm"></span><span class="t"></span>';
-    li.querySelector(".n").textContent = String(i + 1);
-    li.querySelector(".nm").textContent = name;
-    ui.steps.appendChild(li);
-    return li;
-  });
+  // ---- sections list -------------------------------------------------------
+  let rows = [];
+
+  function buildRows() {
+    ui.steps.textContent = "";
+    rows = sections.map((name) => {
+      const li = document.createElement("li");
+      li.className = "step";
+      li.dataset.state = "todo";
+      li.innerHTML = '<span class="n"></span><span class="nm"></span><span class="t"></span>';
+      li.querySelector(".nm").textContent = name;
+      ui.steps.appendChild(li);
+      return li;
+    });
+    rows.forEach((li, i) => {
+      li.querySelector(".n").textContent = String(i + 1);
+    });
+  }
 
   // ---- render --------------------------------------------------------------
   function render() {
@@ -839,13 +964,13 @@
 
   function startRun() {
     const now = Date.now();
-    run = { startedAt: now, index: 0, sectionStartedAt: now, marks: [], done: false, sectionsKey: SECTIONS_KEY };
+    run = { startedAt: now, index: 0, sectionStartedAt: now, marks: [], done: false, sectionsKey: sectionsKey() };
     steam = null;
     write(STEAM_KEY, null);
     commitRun();
     startTicker();
     holdScreen();
-    announce("Started. " + SECTIONS[0] + ".");
+    announce("Started. " + sections[0] + ".");
   }
 
   function nextSection() {
@@ -855,10 +980,10 @@
     }
 
     const now = Date.now();
-    run.marks.push({ name: SECTIONS[run.index], start: run.sectionStartedAt, secs: round1(sectionElapsed()) });
+    run.marks.push({ name: sections[run.index], start: run.sectionStartedAt, secs: round1(sectionElapsed()) });
     run.index += 1;
 
-    if (run.index === SECTIONS.length) {
+    if (run.index === sections.length) {
       finishRun(now);
       return;
     }
@@ -867,7 +992,7 @@
     steam = null;
     write(STEAM_KEY, null);
     commitRun();
-    announce(SECTIONS[run.index] + ".");
+    announce(sections[run.index] + ".");
   }
 
   function finishRun(now) {
@@ -912,7 +1037,7 @@
     steam = null;
     write(STEAM_KEY, null);
     commitRun();
-    announce("Back to " + SECTIONS[run.index] + ", " + fmt(merged) + " so far.");
+    announce("Back to " + sections[run.index] + ", " + fmt(merged) + " so far.");
   }
 
   function resetRun() {
@@ -942,7 +1067,7 @@
   // ---- steam timer ---------------------------------------------------------
   // phase "idle" -> press -> "delay" (config.delaySec) -> "run" -> target cue.
   const steamPhase = () => (steam && steam.phase ? steam.phase : "idle");
-  const steamVisible = () => isRunning() && SECTIONS[run.index] === config.steamSection;
+  const steamVisible = () => isRunning() && sections[run.index] === config.steamSection;
 
   function steamElapsed() {
     if (!steam) return 0;
@@ -1126,7 +1251,7 @@
 
   function fillSectionOptions() {
     ui.cfgSection.textContent = "";
-    SECTIONS.forEach((name) => {
+    sections.forEach((name) => {
       const option = document.createElement("option");
       option.value = name;
       option.textContent = name;
@@ -1148,7 +1273,7 @@
   }
 
   ui.cfgSection.addEventListener("change", () => {
-    config.steamSection = SECTIONS.includes(ui.cfgSection.value) ? ui.cfgSection.value : CFG_DEFAULTS.steamSection;
+    config.steamSection = sections.includes(ui.cfgSection.value) ? ui.cfgSection.value : sections[0];
     ui.cfgSection.value = config.steamSection;
     steam = null;
     write(STEAM_KEY, null);
@@ -1178,6 +1303,153 @@
     config.vibrate = ui.cfgVibrate.checked;
     saveConfig();
   });
+
+  // ---- steps editor --------------------------------------------------------
+  const GRIP_ICON = '<svg width="10" height="16" viewBox="0 0 10 16" aria-hidden="true"><g fill="currentColor">'
+    + '<circle cx="3" cy="3" r="1.4"/><circle cx="7" cy="3" r="1.4"/>'
+    + '<circle cx="3" cy="8" r="1.4"/><circle cx="7" cy="8" r="1.4"/>'
+    + '<circle cx="3" cy="13" r="1.4"/><circle cx="7" cy="13" r="1.4"/></g></svg>';
+  const CROSS_ICON = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">'
+    + '<path d="M2.5 2.5l7 7M9.5 2.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+
+  function renderEditor() {
+    ui.editor.textContent = "";
+    sections.forEach((name, i) => {
+      const li = document.createElement("li");
+      li.className = "edit-row";
+      li.dataset.index = String(i);
+      li.innerHTML =
+        '<button class="grip" type="button" aria-label="Reorder step ' + (i + 1) + '">' + GRIP_ICON + '</button>'
+        + '<input class="step-input" type="text" maxlength="' + NAME_MAX + '" aria-label="Step ' + (i + 1) + ' name">'
+        + '<button class="step-remove" type="button" aria-label="Remove step ' + (i + 1) + '">' + CROSS_ICON + '</button>';
+      li.querySelector(".step-input").value = name;
+      ui.editor.appendChild(li);
+    });
+    ui.addStep.disabled = sections.length >= MAX_SECTIONS;
+  }
+
+  // Every edit lands here: the list is written, the main screen is rebuilt, and
+  // a run that measured the old steps is dropped rather than continued wrong.
+  function applySections(next) {
+    sections = next.slice(0, MAX_SECTIONS);
+    write(SECTIONS_STORE, sections);
+
+    if (isRunning()) {
+      run = null;
+      steam = null;
+      write(RUN_KEY, null);
+      write(STEAM_KEY, null);
+      stopTicker();
+      dropScreen();
+      announce("Steps changed — the run in progress was ended.");
+    }
+
+    if (!sections.includes(config.steamSection)) {
+      config.steamSection = sections[0];
+      write(CFG_KEY, config);
+      announce("Steam timer moved to " + config.steamSection + ".");
+    }
+
+    buildRows();
+    renderEditor();
+    fillSectionOptions();
+    applyConfigToInputs();
+    render();
+  }
+
+  ui.editor.addEventListener("change", (event) => {
+    const input = event.target.closest(".step-input");
+    if (!input) return;
+    const index = Number(input.closest(".edit-row").dataset.index);
+    const name = input.value.trim().slice(0, NAME_MAX);
+    if (!name || name === sections[index]) {
+      input.value = sections[index];
+      return;
+    }
+    const next = sections.slice();
+    next[index] = name;
+    applySections(next);
+  });
+
+  ui.editor.addEventListener("click", (event) => {
+    const remove = event.target.closest(".step-remove");
+    if (!remove || sections.length <= 1) return;
+    const index = Number(remove.closest(".edit-row").dataset.index);
+    const next = sections.slice();
+    next.splice(index, 1);
+    applySections(next);
+  });
+
+  ui.addStep.addEventListener("click", () => {
+    if (sections.length >= MAX_SECTIONS) return;
+    applySections(sections.concat("New step"));
+    const last = ui.editor.lastElementChild;
+    if (!last) return;
+    const input = last.querySelector(".step-input");
+    input.focus();
+    input.select();
+  });
+
+  // drag to reorder: pointer events, so the same code works with a thumb
+  let drag = null;
+
+  const editorRows = () => Array.from(ui.editor.children);
+
+  function dragStart(event) {
+    const grip = event.target.closest(".grip");
+    if (!grip || sections.length < 2) return;
+    const row = grip.closest(".edit-row");
+    drag = {
+      index: Number(row.dataset.index),
+      target: Number(row.dataset.index),
+      startY: event.clientY,
+      height: row.getBoundingClientRect().height + 8,
+      row
+    };
+    row.classList.add("dragging");
+    // a pointer can already be gone by the time we capture it (touch cancel)
+    if (grip.setPointerCapture) {
+      try { grip.setPointerCapture(event.pointerId); } catch (err) { /* drag still tracks via the window */ }
+    }
+    event.preventDefault();
+  }
+
+  function dragMove(event) {
+    if (!drag) return;
+    const dy = event.clientY - drag.startY;
+    drag.row.style.transform = "translateY(" + dy + "px)";
+
+    const target = Math.min(sections.length - 1, Math.max(0, drag.index + Math.round(dy / drag.height)));
+    drag.target = target;
+
+    editorRows().forEach((li, i) => {
+      if (li === drag.row) return;
+      let shift = 0;
+      if (drag.index < target && i > drag.index && i <= target) shift = -drag.height;
+      else if (drag.index > target && i >= target && i < drag.index) shift = drag.height;
+      li.style.transform = shift ? "translateY(" + shift + "px)" : "";
+    });
+  }
+
+  function dragEnd() {
+    if (!drag) return;
+    const { index, target, row } = drag;
+    row.style.transform = "";
+    row.classList.remove("dragging");
+    editorRows().forEach((li) => { li.style.transform = ""; });
+    drag = null;
+
+    if (target === index) return;
+    const next = sections.slice();
+    const moved = next.splice(index, 1)[0];
+    next.splice(target, 0, moved);
+    applySections(next);
+  }
+
+  ui.editor.addEventListener("pointerdown", dragStart);
+  window.addEventListener("pointermove", dragMove);
+  window.addEventListener("pointerup", dragEnd);
+  window.addEventListener("pointercancel", dragEnd);
 
   // ---- wiring --------------------------------------------------------------
   function applyRoute() {
@@ -1232,6 +1504,8 @@
   });
 
   // ---- boot ----------------------------------------------------------------
+  buildRows();
+  renderEditor();
   fillSectionOptions();
   applyConfigToInputs();
   render();
@@ -1239,7 +1513,7 @@
   if (isRunning()) {
     startTicker();
     holdScreen().catch(() => {});
-    announce("Resumed at " + SECTIONS[run.index] + ".");
+    announce("Resumed at " + sections[run.index] + ".");
   }
 })();
 </script>
