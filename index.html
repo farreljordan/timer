@@ -991,7 +991,7 @@
       <h3>Timers</h3>
       <div id="timer-editor"></div>
       <button class="chip chip-wide" id="add-timer" type="button">Add timer</button>
-      <p class="hint">A timer appears on its step only. Run waits the start delay, then counts up; at the alert time it beeps and/or vibrates. Steam is the default, on the milk step.</p>
+      <p class="hint">A timer appears on its step only. Run waits the start delay, plays a short rising cue when counting starts, then a loud alarm at the alert time (both with vibration). Steam is the default, on the milk step.</p>
     </section>
 
     <div class="danger-row">
@@ -1491,13 +1491,13 @@
       if (state.phase === "delay" && now >= state.delayEndsAt) {
         state.phase = "run";
         dirty = true;
-        cue(timer, 1, 680, 0.13, 45);
+        cueStart(timer);
       }
 
       if (state.phase === "run" && !state.hit && (now - state.startedAt) / 1000 >= Number(timer.targetSec)) {
         state.hit = true;
         dirty = true;
-        cue(timer, 3, 900, 0.15, [140, 70, 140]);
+        cueTarget(timer);
         announce(timer.name + " target reached.");
       }
     });
@@ -1512,33 +1512,76 @@
   }
 
   // ---- feedback ------------------------------------------------------------
+  // Two signatures, deliberately different: a soft rising pair when a timer
+  // actually starts counting, and a loud insistent alarm at the target.
   let audio = null;
+  let master = null;
 
   function audioPrime() {
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
-    if (!audio) audio = new Ctx();
+    if (!audio) {
+      audio = new Ctx();
+      master = audio.createGain();
+      master.gain.value = 0.95;
+      if (audio.createDynamicsCompressor) {
+        const limiter = audio.createDynamicsCompressor();
+        limiter.threshold.value = -6;
+        limiter.knee.value = 6;
+        limiter.ratio.value = 12;
+        limiter.attack.value = 0.002;
+        limiter.release.value = 0.15;
+        master.connect(limiter);
+        limiter.connect(audio.destination);
+      } else {
+        master.connect(audio.destination);
+      }
+    }
     if (audio.state === "suspended") audio.resume();
   }
 
-  function cue(timer, count, freq, dur, pattern) {
-    if (timer.sound && audio) {
-      const t0 = audio.currentTime;
-      for (let i = 0; i < count; i++) {
-        const t = t0 + i * 0.24;
-        const osc = audio.createOscillator();
-        const gain = audio.createGain();
-        osc.type = "sine";
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(0.2, t + 0.012);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-        osc.connect(gain).connect(audio.destination);
-        osc.start(t);
-        osc.stop(t + dur + 0.03);
-      }
+  function tone(freq, at, dur, level, type) {
+    const osc = audio.createOscillator();
+    const gain = audio.createGain();
+    osc.type = type || "triangle";
+    osc.frequency.setValueAtTime(freq, at);
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(level, at + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    osc.connect(gain);
+    gain.connect(master);
+    osc.start(at);
+    osc.stop(at + dur + 0.03);
+  }
+
+  function playable(timer) {
+    if (!timer.sound || !audio) return false;
+    if (audio.state === "suspended") audio.resume();
+    return true;
+  }
+
+  function cueStart(timer) {
+    if (playable(timer)) {
+      const t = audio.currentTime + 0.01;
+      tone(660, t, 0.1, 0.45);
+      tone(990, t + 0.12, 0.14, 0.45);
     }
-    if (timer.vibrate && navigator.vibrate) navigator.vibrate(pattern);
+    if (timer.vibrate && navigator.vibrate) navigator.vibrate(55);
+  }
+
+  function cueTarget(timer) {
+    if (playable(timer)) {
+      const t = audio.currentTime + 0.01;
+      for (let i = 0; i < 4; i++) {
+        const at = t + i * 0.19;
+        tone(1245, at, 0.11, 0.62);
+        tone(1660, at, 0.11, 0.3, "sine");
+        tone(622, at, 0.11, 0.28);
+      }
+      tone(1245, t + 0.8, 0.34, 0.6);
+      tone(1660, t + 0.8, 0.34, 0.3, "sine");
+    }
+    if (timer.vibrate && navigator.vibrate) navigator.vibrate([200, 90, 200, 90, 320]);
   }
 
   // ---- run transitions -----------------------------------------------------

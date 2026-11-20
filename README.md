@@ -50,9 +50,11 @@ measured different steps).
 ## Timers
 
 A step can carry one or more small timers. Each appears only while its step is
-the current one — press `Run`, it waits its own delay (default 5 s), then counts
-up; at its target (default 55 s) it beeps, vibrates and says the target was
-reached, and keeps counting so you can see the overshoot.
+the current one — press `Run`, it waits its own delay (default 5 s), plays a
+soft rising two-note cue when counting actually starts, then counts up; at its
+target (default 55 s) a louder four-burst alarm (three partials, through a
+limiter) plus a longer vibration fires, the panel says the target was reached,
+and the clock keeps running so you can see the overshoot.
 
 The default is a single timer named **Steam** on *Milk — prep & steam* with a
 5 s delay and a 55 s target. Add more on the Runs page under **Timers**: name,
