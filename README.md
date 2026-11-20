@@ -52,8 +52,8 @@ measured different steps).
 A step can carry one or more small timers. Each appears only while its step is
 the current one — press `Run`, it waits its own delay (default 5 s), plays a
 soft rising two-note cue when counting actually starts, then counts up; at its
-target (default 55 s) a louder four-burst alarm (three partials, through a
-limiter) plus a longer vibration fires, the panel says the target was reached,
+target (default 55 s) a five-burst alarm (four partials, square fundamental)
+that renders at −19 dBFS RMS with peaks just under full scale plus a longer vibration fires, the panel says the target was reached,
 and the clock keeps running so you can see the overshoot.
 
 The default is a single timer named **Steam** on *Milk — prep & steam* with a
